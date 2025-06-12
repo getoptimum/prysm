@@ -2,6 +2,7 @@ package params
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
@@ -54,6 +55,30 @@ func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
 	}
 
 	return 0 // This should never happen. Maybe even panic? It's ensured safe by IsValid().
+}
+
+// SinceGenesis will return the amount of time since genesis for a given slot. May return an error
+// when the slot value would cause an overflow or underflow.
+func (s SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, error) {
+	s.sort()
+
+	var tm time.Duration
+	for i, e := range s {
+		if i == len(s)-1 || epochStart(s[i+1].Epoch) > slot {
+			delta, err := slot.SafeSub(uint64(epochStart(e.Epoch)))
+			if err != nil {
+				return 0, fmt.Errorf("failed to compute the number of slots into the epoch: %w", err)
+			}
+			return tm + (time.Duration(delta) * e.SlotDuration), nil
+		}
+		delta, err := s[i+1].Epoch.SafeSub(uint64(e.Epoch))
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute the number of slots in a SlotTimeSchedule entry: %w", err)
+		}
+		tm += (time.Duration(primitives.Slot(delta)*BeaconConfig().SlotsPerEpoch) * e.SlotDuration)
+	}
+
+	return 0, errors.New("not implemented")
 }
 
 // This is a copy from slots.EpochStart, but avoids the circular dependency.

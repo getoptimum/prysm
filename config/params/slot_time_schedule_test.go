@@ -92,3 +92,78 @@ func TestSlotTimeSchedule_CurrentSlot(t *testing.T) {
 		})
 	}
 }
+
+func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
+	tests := []struct {
+		name string
+		// Inputs
+		sch  params.SlotTimeSchedule
+		slot primitives.Slot
+		// Want
+		since time.Duration
+	}{
+		{
+			name: "single entry",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				},
+			},
+			slot:  slots.UnsafeEpochStart(33),
+			since: 12 * time.Second * 33 * time.Duration(params.BeaconConfig().SlotsPerEpoch),
+		},
+		{
+			name: "multiple entries",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        32,
+					SlotDuration: 10 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot: slots.UnsafeEpochStart(33),
+			since: func() time.Duration {
+				firstEpochDuration := 32 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * 12 * time.Second
+				oneEpochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch) * 10 * time.Second
+				return firstEpochDuration + oneEpochDuration
+			}(),
+		},
+		{
+			name: "multiple entries, last entry",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        32,
+					SlotDuration: 10 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot: slots.UnsafeEpochStart(100),
+			since: func() time.Duration {
+				firstEntryDuration := 32 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * 12 * time.Second
+				secondEntryDuration := 32 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * 10 * time.Second
+				remaining := (100 - 64) * time.Duration(params.BeaconConfig().SlotsPerEpoch) * 1 * time.Second
+				return firstEntryDuration + secondEntryDuration + remaining
+			}(),
+		},
+		// TODO: Unsorted.
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.sch.SinceGenesis(tt.slot)
+			require.NoError(t, err)
+			require.Equal(t, tt.since, got)
+		})
+	}
+}
