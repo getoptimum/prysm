@@ -41,7 +41,7 @@ func TestBlobIndexInBounds(t *testing.T) {
 func TestSlotNotTooEarly(t *testing.T) {
 	now := time.Now()
 	// make genesis 1 slot in the past
-	genesis := now.Add(-1 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second)
+	genesis := now.Add(-1 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 
 	_, blobs := util.GenerateTestDenebBlockWithSidecar(t, [32]byte{}, 0, 1)
 	b := blobs[0]

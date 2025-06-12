@@ -257,7 +257,7 @@ func TestSlotToTime(t *testing.T) {
 				genesis: time.Unix(0, 0),
 				slot:    1,
 			},
-			want: time.Unix(int64(1*params.BeaconConfig().SecondsPerSlot), 0),
+			want: time.Unix(0, int64(1*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))),
 		},
 		{
 			name: "slot_12",
@@ -265,7 +265,7 @@ func TestSlotToTime(t *testing.T) {
 				genesis: time.Unix(500, 0),
 				slot:    12,
 			},
-			want: time.Unix(500+int64(12*params.BeaconConfig().SecondsPerSlot), 0),
+			want: time.Unix(500, int64(12*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))),
 		},
 		{
 			name: "overflow",
@@ -303,14 +303,14 @@ func TestVerifySlotTime(t *testing.T) {
 		{
 			name: "Past slot",
 			args: args{
-				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
 				slot:        3,
 			},
 		},
 		{
 			name: "within tolerance",
 			args: args{
-				genesisTime:   prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second).Add(20 * time.Millisecond),
+				genesisTime:   prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second).Add(20 * time.Millisecond),
 				slot:          5,
 				timeTolerance: 20 * time.Millisecond,
 			},
@@ -318,7 +318,7 @@ func TestVerifySlotTime(t *testing.T) {
 		{
 			name: "future slot",
 			args: args{
-				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
 				slot:        6,
 			},
 			wantedErr: "could not process slot from the future",
@@ -326,7 +326,7 @@ func TestVerifySlotTime(t *testing.T) {
 		{
 			name: "future slot but ok given 2s tolerance",
 			args: args{
-				genesisTime:   prysmTime.Now().Add(-1*time.Duration(params.BeaconConfig().SecondsPerSlot) - 10*time.Second),
+				genesisTime:   prysmTime.Now().Add(-1*time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) - 10*time.Second),
 				slot:          1,
 				timeTolerance: 2 * time.Second,
 			},
@@ -334,7 +334,7 @@ func TestVerifySlotTime(t *testing.T) {
 		{
 			name: "max future slot",
 			args: args{
-				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesisTime: prysmTime.Now().Add(-1 * 5 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
 				slot:        primitives.Slot(MaxSlotBuffer + 6),
 			},
 			wantedErr: "exceeds max allowed value relative to the local clock",
@@ -342,10 +342,10 @@ func TestVerifySlotTime(t *testing.T) {
 		{
 			name: "evil future slot",
 			args: args{
-				genesisTime: prysmTime.Now().Add(-1 * 24 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second), // 24 slots in the past
+				genesisTime: prysmTime.Now().Add(-1 * 24 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second), // 24 slots in the past
 				// Gets multiplied with slot duration, and results in an overflow. Wraps around to a valid time.
 				// Lower than max signed int. And chosen specifically to wrap to a valid slot 24
-				slot: primitives.Slot((^uint64(0))/params.BeaconConfig().SecondsPerSlot) + 24,
+				slot: primitives.Slot((^uint64(0))/uint64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)/time.Second)) + 24,
 			},
 			wantedErr: "is in the far distant future",
 		},
@@ -363,7 +363,7 @@ func TestVerifySlotTime(t *testing.T) {
 }
 
 func TestValidateSlotClock_HandlesBadSlot(t *testing.T) {
-	genTime := prysmTime.Now().Add(-1 * time.Duration(MaxSlotBuffer) * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second)
+	genTime := prysmTime.Now().Add(-1 * time.Duration(MaxSlotBuffer) * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
 
 	assert.NoError(t, ValidateClock(primitives.Slot(MaxSlotBuffer), genTime), "unexpected error validating slot")
 	assert.NoError(t, ValidateClock(primitives.Slot(2*MaxSlotBuffer), genTime), "unexpected error validating slot")
@@ -448,7 +448,7 @@ func TestSinceSlotStart(t *testing.T) {
 		wantedErr bool
 	}{
 		{slot: 1, timeStamp: now.Add(-1 * time.Hour), wantedErr: true},
-		{slot: 1, timeStamp: now.Add(2 * time.Second).Add(time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second), wanted: 2 * time.Second},
+		{slot: 1, timeStamp: now.Add(2 * time.Second).Add(time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second), wanted: 2 * time.Second},
 	}
 	for i, test := range tests {
 		t.Logf("testing scenario %d", i)
@@ -462,77 +462,6 @@ func TestSinceSlotStart(t *testing.T) {
 	}
 }
 
-func TestDuration(t *testing.T) {
-	oneSlot := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
-	cases := []struct {
-		name     string
-		start    time.Time
-		endDelta time.Duration
-		expected primitives.Slot
-	}{
-		{
-			name:     "end before start",
-			start:    time.Now(),
-			endDelta: -64 * time.Second,
-			expected: 0,
-		},
-		{
-			name:     "end equals start",
-			start:    time.Now(),
-			endDelta: 0,
-			expected: 0,
-		},
-		{
-			name:     "one slot apart",
-			start:    time.Now(),
-			endDelta: oneSlot,
-			expected: 1,
-		},
-		{
-			name:     "same slot",
-			start:    time.Now(),
-			endDelta: time.Second,
-			expected: 0,
-		},
-		{
-			name:     "don't round up",
-			start:    time.Now(),
-			endDelta: oneSlot - time.Second,
-			expected: 0,
-		},
-		{
-			name:     "don't round up pt 2",
-			start:    time.Now(),
-			endDelta: 2*oneSlot - time.Second,
-			expected: 1,
-		},
-		{
-			name:     "2 slots",
-			start:    time.Now(),
-			endDelta: 2 * oneSlot,
-			expected: 2,
-		},
-		{
-			name:     "1 epoch",
-			start:    time.Now(),
-			endDelta: time.Duration(params.BeaconConfig().SlotsPerEpoch) * oneSlot,
-			expected: params.BeaconConfig().SlotsPerEpoch,
-		},
-		{
-			name:     "1 epoch and change",
-			start:    time.Now(),
-			endDelta: oneSlot + time.Second + time.Duration(params.BeaconConfig().SlotsPerEpoch)*oneSlot,
-			expected: params.BeaconConfig().SlotsPerEpoch + 1,
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			end := c.start.Add(c.endDelta)
-			a := Duration(c.start, end)
-			require.Equal(t, c.expected, a)
-		})
-	}
-}
 
 func TestWithinVotingWindow(t *testing.T) {
 	genesisTime := time.Now().Add(-37 * time.Second)
@@ -542,17 +471,18 @@ func TestWithinVotingWindow(t *testing.T) {
 }
 
 func TestSecondsUntilNextEpochStart(t *testing.T) {
-	secondsInEpoch := uint64(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SecondsPerSlot
+	params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	secondsInEpoch := time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
 	// try slot 3
 	genesisTime := time.Now().Add(-39 * time.Second)
 	waitTime, err := SecondsUntilNextEpochStart(genesisTime)
 	require.NoError(t, err)
-	require.Equal(t, secondsInEpoch-(params.BeaconConfig().SecondsPerSlot*3)-3, waitTime)
+	require.Equal(t, secondsInEpoch-(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*3)-3, waitTime)
 	// try slot 34
-	genesisTime = time.Now().Add(time.Duration(-1*int(secondsInEpoch)-int(params.BeaconConfig().SecondsPerSlot*2)-5) * time.Second)
+	genesisTime = time.Now().Add(time.Duration(-1*int(secondsInEpoch)-int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*2)-5) * time.Second)
 	waitTime, err = SecondsUntilNextEpochStart(genesisTime)
 	require.NoError(t, err)
-	require.Equal(t, secondsInEpoch-(params.BeaconConfig().SecondsPerSlot*2)-5, waitTime)
+	require.Equal(t, secondsInEpoch-(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*2)-5, waitTime)
 
 	// check if waitTime is correctly EpochStart
 	n := time.Now().Add(-39 * time.Second)
@@ -584,7 +514,7 @@ func TestCurrentSlot(t *testing.T) {
 		{
 			name: "post-genesis",
 			args: args{
-				genesis: prysmTime.Now().Add(-5 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesis: prysmTime.Now().Add(-5 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
 			},
 			want: 5,
 		},
@@ -604,7 +534,7 @@ func TestCurrentSlot_iterative(t *testing.T) {
 }
 
 func testCurrentSlot(t testing.TB, slot primitives.Slot) {
-	genesis := time.Now().Add(-1 * time.Duration(slot) * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second)
+	genesis := time.Now().Add(-1 * time.Duration(slot) * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
 	cs := CurrentSlot(genesis)
 	require.Equal(t, slot, cs)
 }

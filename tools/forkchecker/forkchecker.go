@@ -54,7 +54,8 @@ func main() {
 		clients[endpt] = pb.NewBeaconChainClient(conn)
 	}
 
-	ticker := time.NewTicker(time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second)
+	// TODO(preston): use slots.NewSlotTicker
+	ticker := time.NewTicker(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	go func() {
 		for range ticker.C {
 			if *compare {

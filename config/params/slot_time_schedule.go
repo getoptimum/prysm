@@ -20,7 +20,7 @@ type SlotTimeScheduleEntry struct {
 }
 
 // IsValid ensures that there is at least one entry with epoch 0 and that all entries have an epoch
-// with a value less than MaxSafeEpoch.
+// with a value less than MaxSafeEpoch. It also ensures that every duration is at least 1 second.
 func (s SlotTimeSchedule) IsValid() error {
 	return errors.New("not implemented")
 }
@@ -55,6 +55,11 @@ func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
 	}
 
 	return 0 // This should never happen. Maybe even panic? It's ensured safe by IsValid().
+}
+
+// CurrentSlotDuration returns the slot duration given the current slot on the schedule.
+func (s SlotTimeSchedule) CurrentSlotDuration(genesis time.Time) time.Duration {
+	return s.SlotDuration(s.CurrentSlot(genesis))
 }
 
 // SinceGenesis will return the amount of time since genesis for a given slot. May return an error

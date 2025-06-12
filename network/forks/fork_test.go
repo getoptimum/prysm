@@ -11,6 +11,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
+	"github.com/OffchainLabs/prysm/v6/testing/require"
 )
 
 func TestFork(t *testing.T) {
@@ -216,7 +217,9 @@ func TestIsForkNextEpoch(t *testing.T) {
 	}
 	params.OverrideBeaconConfig(cfg)
 	genTimeCreator := func(epoch primitives.Epoch) time.Time {
-		return time.Now().Add(-time.Duration(uint64(params.BeaconConfig().SlotsPerEpoch)*uint64(epoch)*params.BeaconConfig().SecondsPerSlot) * time.Second)
+		sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(primitives.Slot(epoch) * params.BeaconConfig().SlotsPerEpoch)
+		require.NoError(t, err)
+		return time.Now().Add(-1 * sg)
 	}
 	// Is at Fork Epoch
 	genesisTime := genTimeCreator(10)

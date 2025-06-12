@@ -137,7 +137,7 @@ func (s *Store) insert(ctx context.Context,
 		if err != nil {
 			return nil, fmt.Errorf("could not determine time since current slot started: %w", err)
 		}
-		boostThreshold := time.Duration(params.BeaconConfig().SecondsPerSlot/params.BeaconConfig().IntervalsPerSlot) * time.Second
+		boostThreshold := params.BeaconConfig().SlotTimeSchedule.SlotDuration(currentSlot)/time.Duration(params.BeaconConfig().IntervalsPerSlot)
 		isFirstBlock := s.proposerBoostRoot == [32]byte{}
 		if currentSlot == slot && sss < boostThreshold && isFirstBlock {
 			s.proposerBoostRoot = root
@@ -282,7 +282,9 @@ func (f *ForkChoice) HighestReceivedBlockDelay() primitives.Slot {
 	if err != nil {
 		return 0
 	}
-	return primitives.Slot(uint64(sss/time.Second) / params.BeaconConfig().SecondsPerSlot)
+  // TODO(preston): This isn't as easy as naively dividing `sss` by the current slot duration. 
+  // It may exceed one or more slot time schedules. The following code is a temporary implementation.
+  return primitives.Slot(sss/params.BeaconConfig().SlotTimeSchedule.SlotDuration(n.slot))
 }
 
 // ReceivedBlocksLastEpoch returns the number of blocks received in the last epoch

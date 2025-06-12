@@ -177,8 +177,8 @@ func TestNotFromFutureSlot(t *testing.T) {
 			const blobCount = 1
 
 			now := time.Now()
-			secondsPerSlot := time.Duration(params.BeaconConfig().SecondsPerSlot)
-			genesis := now.Add(-time.Duration(tc.currentSlot) * secondsPerSlot * time.Second)
+			secondsPerSlot := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+			genesis := now.Add(-time.Duration(tc.currentSlot) * secondsPerSlot)
 
 			clock := startup.NewClock(
 				genesis,

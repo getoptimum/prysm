@@ -96,7 +96,14 @@ func (s *Service) expired(providedSlot primitives.Slot) bool {
 // Handles expiration of attestations before deneb.
 func (s *Service) expiredPreDeneb(slot primitives.Slot) bool {
 	expirationSlot := slot + params.BeaconConfig().SlotsPerEpoch
-	expirationTime := s.genesisTime.Add(time.Duration(expirationSlot.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+  sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(expirationSlot)
+  if err != nil {
+    // TODO(preston): What should the default behavior be in the case of an error?
+    // The only error would be an overflow. Maybe better to declare this problematic
+    // as expired.
+    return true
+  }
+	expirationTime := s.genesisTime.Add(sg)
 	return expirationTime.Before(time.Now())
 }
 

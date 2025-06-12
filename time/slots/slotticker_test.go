@@ -139,7 +139,8 @@ func TestGetSlotTickerWithOffset_OK(t *testing.T) {
 
 func TestGetSlotTickerWitIntervals(t *testing.T) {
 	genesisTime := time.Now()
-	offset := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second / 3
+	// TODO(preston): This needs to be reworked...
+	offset := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) / 3
 	intervals := []time.Duration{offset, 2 * offset}
 
 	intervalTicker := NewSlotTickerWithIntervals(genesisTime, intervals)
@@ -165,7 +166,8 @@ func TestGetSlotTickerWitIntervals(t *testing.T) {
 
 func TestSlotTickerWithIntervalsInputValidation(t *testing.T) {
 	var genesisTime time.Time
-	offset := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second / 3
+	// TODO(preston): This needs to be reworked.
+	offset := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) / 3
 	intervals := make([]time.Duration, 0)
 	panicCall := func() {
 		NewSlotTickerWithIntervals(genesisTime, intervals)

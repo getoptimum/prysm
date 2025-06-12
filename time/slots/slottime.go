@@ -15,7 +15,7 @@ import (
 )
 
 // MaxSlotBuffer specifies the max buffer given to slots from
-// incoming objects. (24 mins with mainnet spec)
+// incoming objects. (24 mins with mainnet spec). This buffer is denoted in slots.
 const MaxSlotBuffer = uint64(1 << 7)
 
 // UnsafeStartTime returns the start time in terms of its unix epoch
@@ -39,15 +39,17 @@ func EpochsSinceGenesis(genesis time.Time) primitives.Epoch {
 // parameter by a specified number. It returns a value of time.Duration
 // in milliseconds, useful for dividing values such as 1 second into
 // millisecond-based durations.
+// Deprecated: This assumes 12 seconds per slot. TODO(preston): Remove this method.
 func DivideSlotBy(timesPerSlot int64) time.Duration {
-	return time.Duration(int64(params.BeaconConfig().SecondsPerSlot*1000)/timesPerSlot) * time.Millisecond
+	return time.Duration(int64(12*1000)/timesPerSlot) * time.Millisecond
 }
 
 // MultiplySlotBy multiplies the SECONDS_PER_SLOT configuration
 // parameter by a specified number. It returns a value of time.Duration
 // in millisecond-based durations.
+// Deprecated: This assumes 12 seconds per slot. TODO(preston): Remove this method.
 func MultiplySlotBy(times int64) time.Duration {
-	return time.Duration(int64(params.BeaconConfig().SecondsPerSlot)*times) * time.Second
+	return time.Duration(int64(12)*times) * time.Second
 }
 
 // AbsoluteValueSlotDifference between two slots.
@@ -175,12 +177,11 @@ func VerifyTime(genesis time.Time, slot primitives.Slot, timeTolerance time.Dura
 // StartTime takes the given slot and genesis time to determine the start time of the slot.
 // This method returns an error if the product of the slot duration * slot overflows int64.
 func StartTime(genesis time.Time, slot primitives.Slot) (time.Time, error) {
-	_, err := slot.SafeMul(params.BeaconConfig().SecondsPerSlot)
+	tsg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot)
 	if err != nil {
-		return time.Unix(0, 0), fmt.Errorf("slot (%d) is in the far distant future: %w", slot, err)
+		return time.Unix(0, 0), err
 	}
-	sd := time.Second * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Duration(slot)
-	return genesis.Add(sd), nil
+	return genesis.Add(tsg), nil
 }
 
 // CurrentSlot returns the current slot as determined by the local clock and
@@ -194,15 +195,11 @@ func At(genesis, tm time.Time) primitives.Slot {
 	if tm.Before(genesis) {
 		return 0
 	}
-	return primitives.Slot(tm.Sub(genesis) / time.Second / time.Duration(params.BeaconConfig().SecondsPerSlot))
-}
+	//return primitives.Slot(tm.Sub(genesis) / time.Second / time.Duration(params.BeaconConfig().SecondsPerSlot))
+	//}
 
-// Duration computes the span of time between two instants, represented as Slots.
-func Duration(start, end time.Time) primitives.Slot {
-	if end.Before(start) {
-		return 0
-	}
-	return primitives.Slot(uint64(end.Unix()-start.Unix()) / params.BeaconConfig().SecondsPerSlot)
+	// TODO(preston): This is incorrect.
+	return params.BeaconConfig().SlotTimeSchedule.CurrentSlot(genesis)
 }
 
 // ValidateClock validates a provided slot against the local
@@ -229,9 +226,11 @@ func RoundUpToNearestEpoch(slot primitives.Slot) primitives.Slot {
 
 // VotingPeriodStartTime returns the current voting period's start time
 // depending on the provided genesis and current slot.
+// DEPRECATED: Hardcoded to 12 seconds per slot at the moment.
+// TODO: Can this be deleted? Do we do eth1 voting anymore?
 func VotingPeriodStartTime(genesis uint64, slot primitives.Slot) uint64 {
 	slots := params.BeaconConfig().SlotsPerEpoch.Mul(uint64(params.BeaconConfig().EpochsPerEth1VotingPeriod))
-	startTime := uint64((slot - slot.ModSlot(slots)).Mul(params.BeaconConfig().SecondsPerSlot))
+	startTime := uint64((slot - slot.ModSlot(slots)).Mul(12))
 	return genesis + startTime
 }
 
@@ -267,17 +266,23 @@ func SyncCommitteePeriodStartEpoch(e primitives.Epoch) (primitives.Epoch, error)
 // given slot start time. This method returns an error if the timestamp happens
 // before the given slot start time.
 func SinceSlotStart(s primitives.Slot, genesis time.Time, timestamp time.Time) (time.Duration, error) {
-	limit := genesis.Add(time.Duration(uint64(s)*params.BeaconConfig().SecondsPerSlot) * time.Second)
-	if timestamp.Before(limit) {
-		return 0, fmt.Errorf("could not compute seconds since slot %d start: invalid timestamp, got %s < want %s", s, timestamp, limit)
+	sinceGenesis, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(s)
+	if err != nil {
+		return 0, fmt.Errorf("could not determine how long since geneis for the given slot: %w", err)
 	}
-	return timestamp.Sub(limit), nil
+	delta := timestamp.Sub(genesis).Abs() // TODO(preston): Check the order, Abs should not be necessary.
+	if delta < sinceGenesis {
+		return 0, fmt.Errorf("provided timestamp (%d(s) since genesis) is before slot time (%d(s) since genesis) and the result would be a negative number", delta, sinceGenesis)
+	}
+
+	return delta - sinceGenesis, nil
 }
 
 // WithinVotingWindow returns whether the current time is within the voting window
 // (eg. 4 seconds on mainnet) of the current slot.
+// TODO(preston): Update this.
 func WithinVotingWindow(genesis time.Time, slot primitives.Slot) bool {
-	votingWindow := params.BeaconConfig().SecondsPerSlot / params.BeaconConfig().IntervalsPerSlot
+	votingWindow := 12 / params.BeaconConfig().IntervalsPerSlot
 	return time.Since(UnsafeStartTime(genesis, slot)) < time.Duration(votingWindow)*time.Second
 }
 

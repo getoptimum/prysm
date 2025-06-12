@@ -558,7 +558,8 @@ func defaultLightClientFinalityUpdateTopicParams() *pubsub.TopicScoreParams {
 }
 
 func oneSlotDuration() time.Duration {
-	return time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
+	// TODO(preston): This has to be made aware of the genesis time.
+	return params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
 }
 
 func oneEpochDuration() time.Duration {

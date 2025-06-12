@@ -566,8 +566,10 @@ func (s *Service) runLateBlockTasks() {
 		return
 	}
 
-	attThreshold := params.BeaconConfig().SecondsPerSlot / 3
-	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, time.Duration(attThreshold)*time.Second, params.BeaconConfig().SlotTimeSchedule)
+  // TODO(preston): Is there something about attestation deadline? 
+  // TODO(preston): This needs to be updated as the time schedule changes.
+	attThreshold := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime) / 3
+	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, attThreshold, params.BeaconConfig().SlotTimeSchedule)
 	for {
 		select {
 		case <-ticker.C():

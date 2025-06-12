@@ -36,7 +36,8 @@ func (s *Service) Broadcast(ctx context.Context, msg proto.Message) error {
 	ctx, span := trace.StartSpan(ctx, "p2p.Broadcast")
 	defer span.End()
 
-	twoSlots := time.Duration(2*params.BeaconConfig().SecondsPerSlot) * time.Second
+	twoSlots := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime) * 2
+
 	ctx, cancel := context.WithTimeout(ctx, twoSlots)
 	defer cancel()
 
@@ -106,7 +107,8 @@ func (s *Service) internalBroadcastAttestation(ctx context.Context, subnet uint6
 	defer span.End()
 	ctx = trace.NewContext(context.Background(), span) // clear parent context / deadline.
 
-	oneEpoch := time.Duration(1*params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second
+	sts := params.BeaconConfig().SlotTimeSchedule
+	oneEpoch := sts.CurrentSlotDuration(s.genesisTime) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
 	ctx, cancel := context.WithTimeout(ctx, oneEpoch)
 	defer cancel()
 
@@ -160,7 +162,7 @@ func (s *Service) broadcastSyncCommittee(ctx context.Context, subnet uint64, sMs
 	defer span.End()
 	ctx = trace.NewContext(context.Background(), span) // clear parent context / deadline.
 
-	oneSlot := time.Duration(1*params.BeaconConfig().SecondsPerSlot) * time.Second
+	oneSlot := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime)
 	ctx, cancel := context.WithTimeout(ctx, oneSlot)
 	defer cancel()
 
@@ -233,7 +235,7 @@ func (s *Service) internalBroadcastBlob(ctx context.Context, subnet uint64, blob
 	defer span.End()
 	ctx = trace.NewContext(context.Background(), span) // clear parent context / deadline.
 
-	oneSlot := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
+	oneSlot := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime)
 	ctx, cancel := context.WithTimeout(ctx, oneSlot)
 	defer cancel()
 
@@ -363,8 +365,7 @@ func (s *Service) internalBroadcastDataColumn(
 	dataColumnSidecarBroadcastAttempts.Inc()
 
 	// Define a one-slot length context timeout.
-	secondsPerSlot := params.BeaconConfig().SecondsPerSlot
-	oneSlot := time.Duration(secondsPerSlot) * time.Second
+	oneSlot := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime)
 	ctx, cancel := context.WithTimeout(ctx, oneSlot)
 	defer cancel()
 

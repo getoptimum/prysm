@@ -149,6 +149,8 @@ func (s *SlotTicker) start(
 // startWithIntervals starts a ticker that emits a tick every slot at the
 // prescribed intervals. The caller is responsible to make these intervals increasing and
 // less than secondsPerSlot
+// DEPRECATED: Does not support slot time schedule.
+// TODO(preston): Update for slot time schedule.
 func (s *SlotIntervalTicker) startWithIntervals(
 	genesisTime time.Time,
 	until func(time.Time) time.Duration,
@@ -158,7 +160,12 @@ func (s *SlotIntervalTicker) startWithIntervals(
 		slot := CurrentSlot(genesisTime)
 		slot++
 		interval := 0
-		nextTickTime := UnsafeStartTime(genesisTime, slot).Add(intervals[0])
+		st, err := SlotTime(genesisTime, slot)
+		if err != nil {
+			// TODO(preston): Handle.
+			panic(err) // lint:nopanic -- DEBUG
+		}
+		nextTickTime := st.Add(intervals[0])
 
 		for {
 			waitTime := until(nextTickTime)
@@ -170,7 +177,12 @@ func (s *SlotIntervalTicker) startWithIntervals(
 					interval = 0
 					slot++
 				}
-				nextTickTime = UnsafeStartTime(genesisTime, slot).Add(intervals[interval])
+				st, err := SlotTime(genesisTime, slot)
+				if err != nil {
+					// TODO(preston): Handle.
+					panic(err) // lint:nopanic -- DEBUG
+				}
+				nextTickTime = st.Add(intervals[0])
 			case <-s.done:
 				return
 			}
@@ -191,7 +203,9 @@ func NewSlotTickerWithIntervals(genesisTime time.Time, intervals []time.Duration
 	if len(intervals) == 0 {
 		panic("at least one interval has to be entered")
 	}
-	slotDuration := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
+	// TODO(preston): The one or more of the callers of this function expect 12 second slot times. This method will need to be reworked
+	// properly account for the use cases where the caller wants an event at some fraction of a slot. I.e. half way, two thirds, etc.
+	slotDuration := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
 	lastOffset := time.Duration(0)
 	for _, offset := range intervals {
 		if offset < lastOffset {

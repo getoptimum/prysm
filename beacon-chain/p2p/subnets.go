@@ -20,6 +20,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
 	"github.com/OffchainLabs/prysm/v6/monitoring/tracing/trace"
 	pb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/holiman/uint256"
@@ -485,12 +486,14 @@ func computeSubscribedSubnet(nodeID enode.ID, epoch primitives.Epoch, index uint
 }
 
 func computeSubscriptionExpirationTime(nodeID enode.ID, epoch primitives.Epoch) time.Duration {
+	cfg := params.BeaconConfig()
 	nodeOffset, _ := computeOffsetAndPrefix(nodeID)
-	pastEpochs := (nodeOffset + uint64(epoch)) % params.BeaconConfig().EpochsPerSubnetSubscription
-	remEpochs := params.BeaconConfig().EpochsPerSubnetSubscription - pastEpochs
-	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	pastEpochs := (nodeOffset + uint64(epoch)) % cfg.EpochsPerSubnetSubscription
+	remEpochs := cfg.EpochsPerSubnetSubscription - pastEpochs
+	// TODO(preston): This should probably use the "safe" alternative to UnsafeEpochStart.
+	epochDuration := cfg.SlotTimeSchedule.SlotDuration(slots.UnsafeEpochStart(epoch)) * time.Duration(cfg.SlotsPerEpoch)
 	epochTime := time.Duration(remEpochs) * epochDuration
-	return epochTime * time.Second
+	return epochTime
 }
 
 func computeOffsetAndPrefix(nodeID enode.ID) (uint64, uint64) {

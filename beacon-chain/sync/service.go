@@ -71,7 +71,8 @@ const (
 
 var (
 	// Seconds in one epoch.
-	pendingBlockExpTime = time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second
+  // TODO(preston): This will need to be updated.
+	pendingBlockExpTime = params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
 	// time to allow processing early blocks.
 	earlyBlockProcessingTolerance = slots.MultiplySlotBy(2)
 	// time to allow processing early attestations.
