@@ -348,7 +348,7 @@ func (v *validator) SetTicker() {
 	}
 	// Once the ChainStart log is received, we update the genesis time of the validator client
 	// and begin a slot ticker used to track the current slot the beacon node is in.
-	v.ticker = slots.NewSlotTicker(v.genesisTime, params.BeaconConfig().SecondsPerSlot)
+	v.ticker = slots.NewSlotTicker(v.genesisTime, params.BeaconConfig().SlotTimeSchedule)
 	log.WithField("genesisTime", v.genesisTime).Info("Beacon chain started")
 }
 

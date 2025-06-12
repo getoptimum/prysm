@@ -34,7 +34,6 @@ func TestSlotTicker(t *testing.T) {
 	}
 
 	genesisTime := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
-	secondsPerSlot := uint64(8)
 
 	// Test when the ticker starts immediately after genesis time.
 	sinceDuration = 1 * time.Second
@@ -42,7 +41,7 @@ func TestSlotTicker(t *testing.T) {
 	// Make this a buffered channel to prevent a deadlock since
 	// the other goroutine calls a function in this goroutine.
 	tick = make(chan time.Time, 2)
-	ticker.start(genesisTime, secondsPerSlot, since, until, after)
+	ticker.start(genesisTime, since, until, after)
 
 	// Tick once.
 	tick <- time.Now()
@@ -89,7 +88,6 @@ func TestSlotTickerGenesis(t *testing.T) {
 	}
 
 	genesisTime := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
-	secondsPerSlot := uint64(8)
 
 	// Test when the ticker starts before genesis time.
 	sinceDuration = -1 * time.Second
@@ -97,7 +95,7 @@ func TestSlotTickerGenesis(t *testing.T) {
 	// Make this a buffered channel to prevent a deadlock since
 	// the other goroutine calls a function in this goroutine.
 	tick = make(chan time.Time, 2)
-	ticker.start(genesisTime, secondsPerSlot, since, until, after)
+	ticker.start(genesisTime, since, until, after)
 
 	// Tick once.
 	tick <- time.Now()
@@ -116,11 +114,11 @@ func TestSlotTickerGenesis(t *testing.T) {
 
 func TestGetSlotTickerWithOffset_OK(t *testing.T) {
 	genesisTime := time.Now()
-	secondsPerSlot := uint64(4)
+	secondsPerSlot := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
 	offset := time.Duration(secondsPerSlot/2) * time.Second
 
-	offsetTicker := NewSlotTickerWithOffset(genesisTime, offset, secondsPerSlot)
-	normalTicker := NewSlotTicker(genesisTime, secondsPerSlot)
+	offsetTicker := NewSlotTickerWithOffset(genesisTime, offset, params.BeaconConfig().SlotTimeSchedule)
+	normalTicker := NewSlotTicker(genesisTime, params.BeaconConfig().SlotTimeSchedule)
 
 	firstTicked := 0
 	for {
@@ -145,7 +143,7 @@ func TestGetSlotTickerWitIntervals(t *testing.T) {
 	intervals := []time.Duration{offset, 2 * offset}
 
 	intervalTicker := NewSlotTickerWithIntervals(genesisTime, intervals)
-	normalTicker := NewSlotTicker(genesisTime, params.BeaconConfig().SecondsPerSlot)
+	normalTicker := NewSlotTicker(genesisTime, params.BeaconConfig().SlotTimeSchedule)
 
 	firstTicked := 0
 	for {

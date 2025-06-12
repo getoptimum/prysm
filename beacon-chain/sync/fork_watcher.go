@@ -13,7 +13,7 @@ import (
 // Is a background routine that observes for new incoming forks. Depending on the epoch
 // it will be in charge of subscribing/unsubscribing the relevant topics at the fork boundaries.
 func (s *Service) forkWatcher() {
-	slotTicker := slots.NewSlotTicker(s.cfg.clock.GenesisTime(), params.BeaconConfig().SecondsPerSlot)
+	slotTicker := slots.NewSlotTicker(s.cfg.clock.GenesisTime(), params.BeaconConfig().SlotTimeSchedule)
 	for {
 		select {
 		// In the event of a node restart, we will still end up subscribing to the correct

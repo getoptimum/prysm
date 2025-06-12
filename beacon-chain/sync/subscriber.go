@@ -490,9 +490,8 @@ func (s *Service) subscribeWithParameters(p subscribeParameters) {
 	subscriptionBySubnet := make(map[uint64]*pubsub.Subscription)
 	genesisValidatorsRoot := s.cfg.clock.GenesisValidatorsRoot()
 	genesisTime := s.cfg.clock.GenesisTime()
-	secondsPerSlot := params.BeaconConfig().SecondsPerSlot
-	secondsPerSlotDuration := time.Duration(secondsPerSlot) * time.Second
 	currentSlot := s.cfg.clock.CurrentSlot()
+	secondsPerSlotDuration := params.BeaconConfig().SlotTimeSchedule.SlotDuration(currentSlot)
 	neededSubnets := computeAllNeededSubnets(currentSlot, p.getSubnetsToJoin, p.getSubnetsRequiringPeers)
 
 	shortTopicFormat := p.topicFormat
@@ -531,7 +530,7 @@ func (s *Service) subscribeWithParameters(p subscribeParameters) {
 			}
 		}()
 
-		slotTicker := slots.NewSlotTicker(genesisTime, secondsPerSlot)
+		slotTicker := slots.NewSlotTicker(genesisTime, params.BeaconConfig().SlotTimeSchedule)
 		defer slotTicker.Done()
 
 		for {

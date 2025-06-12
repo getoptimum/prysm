@@ -9,7 +9,7 @@ import (
 // updates the node's discovery service to reflect any new fork version
 // changes.
 func (s *Service) forkWatcher() {
-	slotTicker := slots.NewSlotTicker(s.genesisTime, params.BeaconConfig().SecondsPerSlot)
+	slotTicker := slots.NewSlotTicker(s.genesisTime, params.BeaconConfig().SlotTimeSchedule)
 	for {
 		select {
 		case currSlot := <-slotTicker.C():

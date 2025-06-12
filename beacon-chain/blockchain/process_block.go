@@ -567,7 +567,7 @@ func (s *Service) runLateBlockTasks() {
 	}
 
 	attThreshold := params.BeaconConfig().SecondsPerSlot / 3
-	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, time.Duration(attThreshold)*time.Second, params.BeaconConfig().SecondsPerSlot)
+	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, time.Duration(attThreshold)*time.Second, params.BeaconConfig().SlotTimeSchedule)
 	for {
 		select {
 		case <-ticker.C():
