@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/api/client"
+	"github.com/OffchainLabs/prysm/v6/api/client/event"
+	"github.com/OffchainLabs/prysm/v6/config/features"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
@@ -295,4 +297,40 @@ func handleAssignmentError(err error, slot primitives.Slot) {
 	} else {
 		log.WithError(err).Error("Failed to update assignments")
 	}
+}
+func runHealthCheckRoutine(ctx context.Context, v iface.Validator) {
+	log.Info("Starting health check routine for beacon node apis")
+	healthCheckTicker := time.NewTicker(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) // TODO(preston): Does this need to be dynamic?
+	tracker := v.HealthTracker()
+	go func() {
+		// trigger the healthcheck immediately the first time
+		for ; true; <-healthCheckTicker.C {
+			if ctx.Err() != nil {
+				log.WithError(ctx.Err()).Error("Context cancelled")
+				return
+			}
+			isHealthy := tracker.CheckHealth(ctx)
+			if !isHealthy && features.Get().EnableBeaconRESTApi {
+				v.ChangeHost()
+				if !tracker.CheckHealth(ctx) {
+					continue // Skip to the next ticker
+				}
+
+				slot, err := v.CanonicalHeadSlot(ctx)
+				if err != nil {
+					log.WithError(err).Error("Could not get canonical head slot")
+					return
+				}
+				if err := v.PushProposerSettings(ctx, slot, true); err != nil {
+					log.WithError(err).Warn("Failed to update proposer settings")
+				}
+			}
+
+			// in case of node returning healthy but event stream died
+			if isHealthy && !v.EventStreamIsRunning() {
+				log.Info("Event stream reconnecting...")
+				go v.StartEventStream(ctx, event.DefaultEventTopics)
+			}
+		}
+	}()
 }

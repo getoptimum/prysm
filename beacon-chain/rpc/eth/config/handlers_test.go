@@ -84,7 +84,7 @@ func TestGetSpec(t *testing.T) {
 	config.BLSWithdrawalPrefixByte = byte('b')
 	config.ETH1AddressWithdrawalPrefixByte = byte('c')
 	config.GenesisDelay = 24
-	config.SecondsPerSlot = 25
+	// config.SecondsPerSlot = 25 // TODO(preston): Remove
 	config.MinAttestationInclusionDelay = 26
 	config.SlotsPerEpoch = 27
 	config.MinSeedLookahead = 28

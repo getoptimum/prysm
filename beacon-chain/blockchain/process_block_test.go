@@ -2722,7 +2722,7 @@ func TestProcessLightClientUpdate(t *testing.T) {
 		t.Run(version.String(testVersion), func(t *testing.T) {
 			l := util.NewTestLightClient(t, testVersion)
 
-			s.genesisTime = time.Unix(time.Now().Unix()-(int64(params.BeaconConfig().VersionToForkEpochMap()[testVersion])*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))), 0)
+			s.genesisTime = time.Unix(time.Now().Unix()-(int64(params.BeaconConfig().VersionToForkEpochMap()[testVersion])*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))), 0)
 
 			err := s.cfg.BeaconDB.SaveBlock(ctx, l.AttestedBlock)
 			require.NoError(t, err)
@@ -3169,7 +3169,7 @@ func TestProcessLightClientOptimisticUpdate(t *testing.T) {
 			}
 
 			t.Run(version.String(testVersion)+"_"+tc.name, func(t *testing.T) {
-				s.genesisTime = time.Unix(time.Now().Unix()-(int64(forkEpoch)*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))), 0)
+				s.genesisTime = time.Unix(time.Now().Unix()-(int64(forkEpoch)*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))), 0)
 				s.lcStore = &lightClient.Store{}
 
 				var oldActualUpdate interfaces.LightClientOptimisticUpdate
@@ -3309,7 +3309,7 @@ func TestProcessLightClientFinalityUpdate(t *testing.T) {
 			}
 
 			t.Run(version.String(testVersion)+"_"+tc.name, func(t *testing.T) {
-				s.genesisTime = time.Unix(time.Now().Unix()-(int64(forkEpoch)*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))), 0)
+				s.genesisTime = time.Unix(time.Now().Unix()-(int64(forkEpoch)*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))), 0)
 				s.lcStore = &lightClient.Store{}
 
 				var actualOldUpdate, actualNewUpdate interfaces.LightClientFinalityUpdate

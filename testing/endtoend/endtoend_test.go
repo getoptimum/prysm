@@ -127,7 +127,7 @@ func (r *testRunner) scenarioRunner() {
 }
 
 func (r *testRunner) waitExtra(ctx context.Context, e primitives.Epoch, conn *grpc.ClientConn, extra primitives.Epoch) error {
-	spe := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	spe := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	dl := time.Now().Add(time.Second * time.Duration(uint64(extra)*spe))
 
 	beaconClient := eth.NewBeaconChainClient(conn)
@@ -170,7 +170,7 @@ func (r *testRunner) waitForChainStart() {
 // runEvaluators executes assigned evaluators.
 func (r *testRunner) runEvaluators(ec *e2etypes.EvaluationContext, conns []*grpc.ClientConn, tickingStartTime time.Time) error {
 	t, config := r.t, r.config
-	secondsPerEpoch := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	secondsPerEpoch := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	ticker := helpers.NewEpochTicker(tickingStartTime, secondsPerEpoch)
 	for currentEpoch := range ticker.C() {
 		if config.EvalInterceptor(ec, currentEpoch, conns) {
@@ -362,7 +362,7 @@ func (r *testRunner) testBeaconChainSync(ctx context.Context, g *errgroup.Group,
 	conns = append(conns, syncConn)
 
 	// Sleep a second for every 4 blocks that need to be synced for the newly started node.
-	secondsPerEpoch := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	secondsPerEpoch := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	extraSecondsToSync := (config.EpochsToRun)*secondsPerEpoch + uint64(params.BeaconConfig().SlotsPerEpoch.Div(4).Mul(config.EpochsToRun))
 	waitForSync := tickingStartTime.Add(time.Duration(extraSecondsToSync) * time.Second)
 	time.Sleep(time.Until(waitForSync))
@@ -378,7 +378,7 @@ func (r *testRunner) testBeaconChainSync(ctx context.Context, g *errgroup.Group,
 	}
 
 	// Sleep a slot to make sure the synced state is made.
-	time.Sleep(time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second)
+	time.Sleep(time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
 	syncEvaluators := []e2etypes.Evaluator{ev.FinishedSyncing, ev.AllNodesHaveSameHead}
 	// Only execute in the middle of an epoch to prevent race conditions around slot 0.
 	ticker := helpers.NewEpochTicker(tickingStartTime, secondsPerEpoch)

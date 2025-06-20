@@ -446,7 +446,7 @@ func TestService_IsOptimistic(t *testing.T) {
 	require.Equal(t, primitives.Slot(0), c.CurrentSlot())
 	require.Equal(t, false, opt)
 
-	c.SetGenesisTime(time.Now().Add(-time.Second * time.Duration(4*params.BeaconConfig().SlotTimeDuration.SlotDuration(0))))
+	c.SetGenesisTime(time.Now().Add(-time.Second * time.Duration(4*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))))
 	opt, err = c.IsOptimistic(ctx)
 	require.NoError(t, err)
 	require.Equal(t, true, opt)

@@ -41,7 +41,7 @@ func TestClock(t *testing.T) {
 }
 
 func testInterval(nSlots primitives.Slot) (time.Time, time.Time) {
-	oneSlot := time.Second * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
+	oneSlot := time.Second * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	var start uint64 = 23
 	endOffset := oneSlot * time.Duration(nSlots)
 	startTime := time.Unix(int64(start), 0)

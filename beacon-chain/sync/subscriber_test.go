@@ -126,7 +126,7 @@ func TestSubscribe_UnsubscribeTopic(t *testing.T) {
 func TestSubscribe_ReceivesAttesterSlashing(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SecondsPerSlot = 1
+	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	p2pService := p2ptest.NewTestP2P(t)
@@ -431,7 +431,7 @@ func Test_wrapAndReportValidation(t *testing.T) {
 func TestFilterSubnetPeers(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SecondsPerSlot = 1
+	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	gFlags := new(flags.GlobalFlags)
@@ -446,7 +446,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 
 	gt := time.Now()
 	genPlus100 := func() time.Time {
-		return gt.Add(time.Second * time.Duration(uint64(currSlot)*params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+		return gt.Add(time.Second * time.Duration(uint64(currSlot)*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	}
 	chain := &mockChain.ChainService{
 		Genesis:        gt,
@@ -512,7 +512,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 func TestSubscribeWithSyncSubnets_DynamicOK(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SecondsPerSlot = 1
+	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	p := p2ptest.NewTestP2P(t)
@@ -563,13 +563,13 @@ func TestSubscribeWithSyncSubnets_DynamicSwitchFork(t *testing.T) {
 	p := p2ptest.NewTestP2P(t)
 	cfg := params.BeaconConfig().Copy()
 	cfg.AltairForkEpoch = 1
-	cfg.SecondsPerSlot = 1
+	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	cfg.SlotsPerEpoch = 4
 	params.OverrideBeaconConfig(cfg)
 	params.BeaconConfig().InitializeForkSchedule()
 	ctx, cancel := context.WithCancel(t.Context())
 	currSlot := primitives.Slot(100)
-	gt := time.Now().Add(-time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second)
+	gt := time.Now().Add(-time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
 	vr := [32]byte{'A'}
 	r := Service{
 		ctx: ctx,
@@ -663,7 +663,7 @@ func TestSubscribe_ReceivesLCOptimisticUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
+	secondsPerSlot := int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
 	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 
@@ -730,7 +730,7 @@ func TestSubscribe_ReceivesLCFinalityUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
+	secondsPerSlot := int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
 	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 

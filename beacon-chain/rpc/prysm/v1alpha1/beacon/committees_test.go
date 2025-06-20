@@ -35,7 +35,7 @@ func TestServer_ListBeaconCommittees_CurrentEpoch(t *testing.T) {
 	ctx := t.Context()
 	headState := setupActiveValidators(t, numValidators)
 
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	m := &mock.ChainService{
 		Genesis: prysmTime.Now().Add(time.Duration(-1*offset) * time.Second),
 	}
@@ -110,7 +110,7 @@ func TestServer_ListBeaconCommittees_PreviousEpoch(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.SaveState(ctx, headState, gRoot))
 
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	m := &mock.ChainService{
 		State:   headState,
 		Genesis: prysmTime.Now().Add(time.Duration(-1*offset) * time.Second),
@@ -166,7 +166,7 @@ func TestRetrieveCommitteesForRoot(t *testing.T) {
 	numValidators := 128
 	headState := setupActiveValidators(t, numValidators)
 
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 	m := &mock.ChainService{
 		Genesis: prysmTime.Now().Add(time.Duration(-1*offset) * time.Second),
 	}

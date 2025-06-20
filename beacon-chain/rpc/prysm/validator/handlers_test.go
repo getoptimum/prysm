@@ -120,7 +120,7 @@ func TestServer_GetValidatorParticipation_CurrentAndPrevEpoch(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 
 	var st state.BeaconState
 	st, _ = util.DeterministicGenesisState(t, 4)
@@ -221,7 +221,7 @@ func TestServer_GetValidatorParticipation_OrphanedUntilGenesis(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 
 	var st state.BeaconState
 	st, _ = util.DeterministicGenesisState(t, 4)
@@ -358,7 +358,7 @@ func runGetValidatorParticipationCurrentEpoch(t *testing.T, genState state.Beaco
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, gRoot))
 
 	m := &mock.ChainService{State: genState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
 
 	s := &Server{
 		BeaconDB: beaconDB,

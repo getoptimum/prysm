@@ -256,7 +256,7 @@ func TestWaitForSlotTwoThird_WaitCorrectly(t *testing.T) {
 			defer finish()
 			currentTime := time.Now()
 			numOfSlots := primitives.Slot(4)
-			validator.genesisTime = currentTime.Add(-1 * time.Duration(numOfSlots.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
+			validator.genesisTime = currentTime.Add(-1 * time.Duration(numOfSlots.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))) * time.Second)
 			oneThird := slots.DivideSlotBy(3 /* one third of slot duration */)
 			timeToSleep := oneThird + oneThird
 
@@ -275,7 +275,7 @@ func TestWaitForSlotTwoThird_DoneContext_ReturnsImmediately(t *testing.T) {
 			defer finish()
 			currentTime := time.Now()
 			numOfSlots := primitives.Slot(4)
-			validator.genesisTime = currentTime.Add(-1 * time.Duration(numOfSlots.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
+			validator.genesisTime = currentTime.Add(-1 * time.Duration(numOfSlots.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))) * time.Second)
 
 			expectedTime := time.Now()
 			ctx, cancel := context.WithCancel(t.Context())
