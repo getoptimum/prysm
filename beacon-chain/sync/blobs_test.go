@@ -288,7 +288,7 @@ func defaultMockChain(t *testing.T) (*mock.ChainService, *startup.Clock) {
 	cs, err := slots.EpochStart(ce)
 	require.NoError(t, err)
 	now := time.Now()
-	genOffset := types.Slot(params.BeaconConfig().SecondsPerSlot) * cs
+	genOffset := types.Slot(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * cs
 	genesis := now.Add(-1 * time.Second * time.Duration(int64(genOffset)))
 	clock := startup.NewClock(genesis, [32]byte{})
 	chain := &mock.ChainService{

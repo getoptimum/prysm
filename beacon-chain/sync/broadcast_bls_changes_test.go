@@ -79,7 +79,7 @@ func TestRateBLSChanges(t *testing.T) {
 	st, keys := util.DeterministicGenesisStateCapella(t, 256)
 	s.cfg.chain = &mockChain.ChainService{
 		ValidatorsRoot: [32]byte{'A'},
-		Genesis:        time.Now().Add(-time.Second * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Duration(10)),
+		Genesis:        time.Now().Add(-time.Second * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Duration(10)),
 		State:          st,
 	}
 
@@ -148,7 +148,7 @@ func TestBroadcastBLSBatch_changes_slice(t *testing.T) {
 	st, _ := util.DeterministicGenesisStateCapella(t, 32)
 	s.cfg.chain = &mockChain.ChainService{
 		ValidatorsRoot: [32]byte{'A'},
-		Genesis:        time.Now().Add(-time.Second * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Duration(10)),
+		Genesis:        time.Now().Add(-time.Second * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Duration(10)),
 		State:          st,
 	}
 

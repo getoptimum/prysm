@@ -604,14 +604,14 @@ func TestSignAttestation(t *testing.T) {
 func TestServer_WaitToSlotOneThird_CanWait(t *testing.T) {
 	currentTime := time.Now()
 	currentSlot := primitives.Slot(4)
-	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	v := &validator{
 		genesisTime: genesisTime,
 		slotFeed:    new(event.Feed),
 	}
 
-	timeToSleep := params.BeaconConfig().SecondsPerSlot / 3
+	timeToSleep := params.BeaconConfig().SlotTimeDuration.SlotDuration(0) / 3
 	oneThird := currentTime.Add(time.Duration(timeToSleep) * time.Second)
 	v.waitOneThirdOrValidBlock(t.Context(), currentSlot)
 
@@ -623,7 +623,7 @@ func TestServer_WaitToSlotOneThird_CanWait(t *testing.T) {
 func TestServer_WaitToSlotOneThird_SameReqSlot(t *testing.T) {
 	currentTime := time.Now()
 	currentSlot := primitives.Slot(4)
-	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	v := &validator{
 		genesisTime:      genesisTime,
@@ -644,7 +644,7 @@ func TestServer_WaitToSlotOneThird_ReceiveBlockSlot(t *testing.T) {
 
 	currentTime := time.Now()
 	currentSlot := primitives.Slot(4)
-	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	genesisTime := currentTime.Add(-1 * time.Duration(currentSlot.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	v := &validator{
 		genesisTime: genesisTime,

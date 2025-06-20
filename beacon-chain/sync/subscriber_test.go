@@ -446,7 +446,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 
 	gt := time.Now()
 	genPlus100 := func() time.Time {
-		return gt.Add(time.Second * time.Duration(uint64(currSlot)*params.BeaconConfig().SecondsPerSlot))
+		return gt.Add(time.Second * time.Duration(uint64(currSlot)*params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	}
 	chain := &mockChain.ChainService{
 		Genesis:        gt,
@@ -569,7 +569,7 @@ func TestSubscribeWithSyncSubnets_DynamicSwitchFork(t *testing.T) {
 	params.BeaconConfig().InitializeForkSchedule()
 	ctx, cancel := context.WithCancel(t.Context())
 	currSlot := primitives.Slot(100)
-	gt := time.Now().Add(-time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second)
+	gt := time.Now().Add(-time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second)
 	vr := [32]byte{'A'}
 	r := Service{
 		ctx: ctx,
@@ -663,7 +663,7 @@ func TestSubscribe_ReceivesLCOptimisticUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SecondsPerSlot)
+	secondsPerSlot := int(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
 	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 
@@ -730,7 +730,7 @@ func TestSubscribe_ReceivesLCFinalityUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SecondsPerSlot)
+	secondsPerSlot := int(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
 	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 

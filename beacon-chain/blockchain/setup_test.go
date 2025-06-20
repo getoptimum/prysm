@@ -112,7 +112,7 @@ type testServiceRequirements struct {
 
 func minimalTestService(t *testing.T, opts ...Option) (*Service, *testServiceRequirements) {
 	ctx := t.Context()
-	genesis := time.Now().Add(-1 * 4 * time.Duration(params.BeaconConfig().SlotsPerEpoch*primitives.Slot(params.BeaconConfig().SecondsPerSlot)) * time.Second) // Genesis was 4 epochs ago.
+	genesis := time.Now().Add(-1 * 4 * time.Duration(params.BeaconConfig().SlotsPerEpoch*primitives.Slot(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second) // Genesis was 4 epochs ago.
 	beaconDB := testDB.SetupDB(t)
 	fcs := doublylinkedtree.New()
 	fcs.SetGenesisTime(genesis)

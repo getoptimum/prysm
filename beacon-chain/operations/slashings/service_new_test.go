@@ -6,12 +6,12 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/startup"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
-	"github.com/OffchainLabs/prysm/v6/time/slots"
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 )
 
 func TestConvertToElectraWithTimer(t *testing.T) {
@@ -56,8 +56,8 @@ func TestConvertToElectraWithTimer(t *testing.T) {
 	// We need run() to execute the conversion immediately, otherwise we'd need a time.Sleep to wait for the Electra fork.
 	// To do that we need a timer with the current time being at the Electra fork.
 	now := time.Now()
-  sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(cfg.ElectraForkEpoch))
-  require.NoError(t, err)
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(cfg.ElectraForkEpoch))
+	require.NoError(t, err)
 	electraTime := now.Add(sg)
 	c := startup.NewClock(now, [32]byte{}, startup.WithNower(func() time.Time { return electraTime }))
 	cw := startup.NewClockSynchronizer()

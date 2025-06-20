@@ -15,10 +15,10 @@ import (
 func driftGenesisTime(f *ForkChoice, slot primitives.Slot, delay time.Duration) {
 	// TODO(preston): Cleanup this. The snippet below is the working code.
 	genesis := time.Now()
-  s, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot)
-  if err != nil {
-    panic(err) // lint:nopanic -- this is a test so it's ok.
-  }
+	s, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot)
+	if err != nil {
+		panic(err) // lint:nopanic -- this is a test so it's ok.
+	}
 	genesis = genesis.Add(-1 * s)
 	genesis = genesis.Add(-1 * delay.Abs())
 	f.SetGenesisTime(genesis)

@@ -452,7 +452,7 @@ func TestServer_ListValidators_CannotRequestFutureEpoch(t *testing.T) {
 
 func TestServer_ListValidators_reqStateIsNil(t *testing.T) {
 	beaconDB := dbTest.SetupDB(t)
-	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
+	secondsPerEpoch := params.BeaconConfig().SlotTimeDuration.SlotDuration(0) * uint64(params.BeaconConfig().SlotsPerEpoch)
 	bs := &Server{
 		BeaconDB: beaconDB,
 		GenesisTimeFetcher: &mock.ChainService{
@@ -1048,7 +1048,7 @@ func TestServer_ListValidators_FromOldEpoch(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, st, r))
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, r))
 
-	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
+	secondsPerEpoch := params.BeaconConfig().SlotTimeDuration.SlotDuration(0) * uint64(params.BeaconConfig().SlotsPerEpoch)
 	bs := &Server{
 		HeadFetcher: &mock.ChainService{
 			State: st,
@@ -1127,7 +1127,7 @@ func TestServer_ListValidators_ProcessHeadStateSlots(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, beaconDB.SaveState(ctx, st, gRoot))
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, gRoot))
-	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
+	secondsPerEpoch := params.BeaconConfig().SlotTimeDuration.SlotDuration(0) * uint64(params.BeaconConfig().SlotsPerEpoch)
 	bs := &Server{
 		HeadFetcher: &mock.ChainService{
 			State: st,
@@ -1548,7 +1548,7 @@ func TestServer_GetValidatorParticipation_CurrentAndPrevEpoch(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		BeaconDB: beaconDB,
 		StateGen: stategen.New(beaconDB, doublylinkedtree.New()),
@@ -1629,7 +1629,7 @@ func TestServer_GetValidatorParticipation_OrphanedUntilGenesis(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		BeaconDB: beaconDB,
 		StateGen: stategen.New(beaconDB, doublylinkedtree.New()),
@@ -1747,7 +1747,7 @@ func runGetValidatorParticipationCurrentAndPrevEpoch(t *testing.T, genState stat
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, gRoot))
 
 	m := &mock.ChainService{State: genState}
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		BeaconDB: beaconDB,
 		CoreService: &core.Service{
@@ -1862,7 +1862,7 @@ func TestGetValidatorPerformance_OK(t *testing.T) {
 	}
 	require.NoError(t, headState.SetValidators(validators))
 	require.NoError(t, headState.SetBalances([]uint64{100, 101, 102}))
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{
@@ -1925,7 +1925,7 @@ func TestGetValidatorPerformance_Indices(t *testing.T) {
 		},
 	}
 	require.NoError(t, headState.SetValidators(validators))
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{
@@ -1997,7 +1997,7 @@ func TestGetValidatorPerformance_IndicesPubkeys(t *testing.T) {
 	}
 	require.NoError(t, headState.SetValidators(validators))
 
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{
@@ -2075,7 +2075,7 @@ func TestGetValidatorPerformanceAltair_OK(t *testing.T) {
 	require.NoError(t, headState.SetValidators(validators))
 	require.NoError(t, headState.SetInactivityScores([]uint64{0, 0, 0}))
 	require.NoError(t, headState.SetBalances([]uint64{100, 101, 102}))
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{
@@ -2145,7 +2145,7 @@ func TestGetValidatorPerformanceBellatrix_OK(t *testing.T) {
 	require.NoError(t, headState.SetValidators(validators))
 	require.NoError(t, headState.SetInactivityScores([]uint64{0, 0, 0}))
 	require.NoError(t, headState.SetBalances([]uint64{100, 101, 102}))
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{
@@ -2215,7 +2215,7 @@ func TestGetValidatorPerformanceCapella_OK(t *testing.T) {
 	require.NoError(t, headState.SetValidators(validators))
 	require.NoError(t, headState.SetInactivityScores([]uint64{0, 0, 0}))
 	require.NoError(t, headState.SetBalances([]uint64{100, 101, 102}))
-	offset := int64(headState.Slot().Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(headState.Slot().Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	bs := &Server{
 		CoreService: &core.Service{
 			HeadFetcher: &mock.ChainService{

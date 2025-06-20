@@ -430,7 +430,7 @@ func (s *ChainService) CurrentSlot() primitives.Slot {
 	if s.Slot != nil {
 		return *s.Slot
 	}
-  return  params.BeaconConfig().SlotTimeSchedule.CurrentSlot(s.Genesis)
+	return params.BeaconConfig().SlotTimeSchedule.CurrentSlot(s.Genesis)
 }
 
 // Participation mocks the same method in the chain service.

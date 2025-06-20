@@ -803,7 +803,7 @@ func Test_processQueuedAttestations_MultipleChunkIndices(t *testing.T) {
 
 	currentTime := time.Now()
 	totalSlots := uint64(startEpoch) * uint64(params.BeaconConfig().SlotsPerEpoch)
-	secondsSinceGenesis := time.Duration(totalSlots * params.BeaconConfig().SecondsPerSlot)
+	secondsSinceGenesis := time.Duration(totalSlots * params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
 	genesisTime := currentTime.Add(-secondsSinceGenesis * time.Second)
 
 	beaconState, err := util.NewBeaconState()
@@ -868,7 +868,7 @@ func Test_processQueuedAttestations_OverlappingChunkIndices(t *testing.T) {
 
 	currentTime := time.Now()
 	totalSlots := uint64(startEpoch) * uint64(params.BeaconConfig().SlotsPerEpoch)
-	secondsSinceGenesis := time.Duration(totalSlots * params.BeaconConfig().SecondsPerSlot)
+	secondsSinceGenesis := time.Duration(totalSlots * params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
 	genesisTime := currentTime.Add(-secondsSinceGenesis * time.Second)
 
 	beaconState, err := util.NewBeaconState()
@@ -1573,7 +1573,7 @@ func runAttestationsBenchmark(b *testing.B, s *Service, numAtts, numValidators u
 	}
 	for i := 0; i < b.N; i++ {
 		numEpochs := numAtts
-		totalSeconds := numEpochs * uint64(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SecondsPerSlot
+		totalSeconds := numEpochs * uint64(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)
 		genesisTime := time.Now().Add(-time.Second * time.Duration(totalSeconds))
 		s.genesisTime = genesisTime
 

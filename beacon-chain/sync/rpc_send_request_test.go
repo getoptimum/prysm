@@ -704,7 +704,7 @@ func TestSendBlobsByRangeRequest(t *testing.T) {
 
 	t.Run("single blob - Deneb", func(t *testing.T) {
 		// Setup genesis such that we are currently in deneb.
-		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().DenebForkEpoch)) * params.BeaconConfig().SecondsPerSlot
+		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().DenebForkEpoch)) * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)
 		clock := startup.NewClock(time.Now().Add(-time.Second*time.Duration(s)), [32]byte{})
 		ctxByte, err := ContextByteVersionsForValRoot(clock.GenesisValidatorsRoot())
 		require.NoError(t, err)
@@ -757,7 +757,7 @@ func TestSendBlobsByRangeRequest(t *testing.T) {
 			require.NoError(t, undo())
 		}()
 		// Setup genesis such that we are currently in deneb.
-		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().DenebForkEpoch)) * params.BeaconConfig().SecondsPerSlot
+		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().DenebForkEpoch)) * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)
 		clock := startup.NewClock(time.Now().Add(-time.Second*time.Duration(s)), [32]byte{})
 		ctxByte, err := ContextByteVersionsForValRoot(clock.GenesisValidatorsRoot())
 		require.NoError(t, err)
@@ -825,7 +825,7 @@ func TestSendBlobsByRangeRequest(t *testing.T) {
 			require.NoError(t, undo())
 		}()
 
-		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().ElectraForkEpoch)) * params.BeaconConfig().SecondsPerSlot
+		s := uint64(slots.UnsafeEpochStart(params.BeaconConfig().ElectraForkEpoch)) * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)
 		clock := startup.NewClock(time.Now().Add(-time.Second*time.Duration(s)), [32]byte{})
 		ctxByte, err := ContextByteVersionsForValRoot(clock.GenesisValidatorsRoot())
 		require.NoError(t, err)

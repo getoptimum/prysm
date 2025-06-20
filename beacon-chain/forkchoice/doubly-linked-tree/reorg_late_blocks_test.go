@@ -134,7 +134,7 @@ func TestForkChoice_GetProposerHead(t *testing.T) {
 	headRoot, err := f.Head(ctx)
 	require.NoError(t, err)
 	require.Equal(t, blk.Root(), headRoot)
-        // TODO(preston): replace with attestation deadline?
+	// TODO(preston): replace with attestation deadline?
 	orphanLateBlockFirstThreshold := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) / time.Duration(params.BeaconConfig().IntervalsPerSlot)
 	f.store.headNode.timestamp.Add(-1 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)-orphanLateBlockFirstThreshold))
 	t.Run("head is weak", func(t *testing.T) {
@@ -161,9 +161,9 @@ func TestForkChoice_GetProposerHead(t *testing.T) {
 	})
 	t.Run("head is early", func(t *testing.T) {
 		saved := f.store.headNode.timestamp
-    sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(f.store.headNode.slot)
-    require.NoError(t, err)
-		headTimeStamp := f.store.genesisTime.Add(sg*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)+time.Second)
+		sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(f.store.headNode.slot)
+		require.NoError(t, err)
+		headTimeStamp := f.store.genesisTime.Add(sg*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) + time.Second)
 		f.store.headNode.timestamp = headTimeStamp
 		require.Equal(t, childRoot, f.GetProposerHead())
 		f.store.headNode.timestamp = saved

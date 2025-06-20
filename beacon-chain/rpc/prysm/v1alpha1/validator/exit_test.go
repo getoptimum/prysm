@@ -36,7 +36,7 @@ func TestProposeExit_Notification(t *testing.T) {
 	require.NoError(t, err, "Could not get signing root")
 
 	// Set genesis time to be 100 epochs ago.
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	genesisTime := time.Now().Add(time.Duration(-100*offset) * time.Second)
 	mockChainService := &mockChain.ChainService{State: beaconState, Root: genesisRoot[:], Genesis: genesisTime}
 	server := &Server{
@@ -103,7 +103,7 @@ func TestProposeExit_NoPanic(t *testing.T) {
 	require.NoError(t, err, "Could not get signing root")
 
 	// Set genesis time to be 100 epochs ago.
-	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
+	offset := int64(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	genesisTime := time.Now().Add(time.Duration(-100*offset) * time.Second)
 	mockChainService := &mockChain.ChainService{State: beaconState, Root: genesisRoot[:], Genesis: genesisTime}
 	server := &Server{

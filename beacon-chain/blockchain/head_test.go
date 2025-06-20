@@ -261,7 +261,7 @@ func TestSaveOrphanedAtts(t *testing.T) {
 	ctx := t.Context()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
-	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	// Chain setup
 	// 0 -- 1 -- 2 -- 3
@@ -327,7 +327,7 @@ func TestSaveOrphanedAttsElectra(t *testing.T) {
 	ctx := t.Context()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
-	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	// Chain setup
 	// 0 -- 1 -- 2 -- 3
@@ -398,7 +398,7 @@ func TestSaveOrphanedOps(t *testing.T) {
 	ctx := t.Context()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
-	service.SetGenesisTime(time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second))
+	service.SetGenesisTime(time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second))
 
 	// Chain setup
 	// 0 -- 1 -- 2 -- 3
@@ -476,7 +476,7 @@ func TestSaveOrphanedAtts_CanFilter(t *testing.T) {
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
 	service.cfg.BLSToExecPool = blstoexec.NewPool()
-	service.genesisTime = time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotsPerEpoch+2)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	service.genesisTime = time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotsPerEpoch+2)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	// Chain setup
 	// 0 -- 1 -- 2
@@ -533,7 +533,7 @@ func TestSaveOrphanedAtts_DoublyLinkedTrie(t *testing.T) {
 	ctx := t.Context()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
-	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	service.genesisTime = time.Now().Add(time.Duration(-10*int64(1)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	// Chain setup
 	// 0 -- 1 -- 2 -- 3
@@ -598,7 +598,7 @@ func TestSaveOrphanedAtts_CanFilter_DoublyLinkedTrie(t *testing.T) {
 	ctx := t.Context()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
-	service.genesisTime = time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotsPerEpoch+2)*int64(params.BeaconConfig().SecondsPerSlot)) * time.Second)
+	service.genesisTime = time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotsPerEpoch+2)*int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))) * time.Second)
 
 	// Chain setup
 	// 0 -- 1 -- 2

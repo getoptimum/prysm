@@ -566,8 +566,8 @@ func (s *Service) runLateBlockTasks() {
 		return
 	}
 
-  // TODO(preston): Is there something about attestation deadline? 
-  // TODO(preston): This needs to be updated as the time schedule changes.
+	// TODO(preston): Is there something about attestation deadline?
+	// TODO(preston): This needs to be updated as the time schedule changes.
 	attThreshold := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime) / 3
 	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, attThreshold, params.BeaconConfig().SlotTimeSchedule)
 	for {

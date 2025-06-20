@@ -193,7 +193,7 @@ func TestStatusRPCHandler_ReturnsHelloMessage(t *testing.T) {
 		Epoch: 3,
 		Root:  finalizedRoot[:],
 	}
-	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SecondsPerSlot))
+	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	genTime := time.Now().Unix() - totalSec
 
 	gt := time.Unix(genTime, 0)
@@ -528,7 +528,7 @@ func TestStatusRPCRequest_FinalizedBlockExists(t *testing.T) {
 		Epoch: 3,
 		Root:  finalizedRoot[:],
 	}
-	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SecondsPerSlot))
+	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 	genTime := time.Now().Unix() - totalSec
 	chain := &mock.ChainService{
 		State:               genesisState,
@@ -714,7 +714,7 @@ func TestStatusRPCRequest_FinalizedBlockSkippedSlots(t *testing.T) {
 		require.NoError(t, db.SaveFinalizedCheckpoint(t.Context(), finalizedCheckpt))
 
 		epoch := expectedFinalizedEpoch.Add(2)
-		totalSec := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(epoch) * params.BeaconConfig().SecondsPerSlot))
+		totalSec := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(epoch) * params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
 		gt := time.Unix(time.Now().Unix()-int64(totalSec), 0)
 		vr := [32]byte{'A'}
 		chain := &mock.ChainService{
@@ -977,7 +977,7 @@ func TestShouldResync(t *testing.T) {
 			name: "two epochs behind, resync ok",
 			args: args{
 				headSlot: 31,
-				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second),
 				syncing:  false,
 			},
 			want: true,
@@ -986,7 +986,7 @@ func TestShouldResync(t *testing.T) {
 			name: "two epochs behind, already syncing",
 			args: args{
 				headSlot: 31,
-				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
+				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second),
 				syncing:  true,
 			},
 			want: false,
