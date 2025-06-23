@@ -58,7 +58,7 @@ func TestValidateDataColumn(t *testing.T) {
 		const genesisNSec = 0
 
 		p := p2ptest.NewTestP2P(t)
-		genesisSec := time.Now().Unix() - int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0))
+		genesisSec := time.Now().Unix() - int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 		chainService := &mock.ChainService{Genesis: time.Unix(genesisSec, genesisNSec)}
 
 		clock := startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot)

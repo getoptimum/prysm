@@ -446,7 +446,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 
 	gt := time.Now()
 	genPlus100 := func() time.Time {
-		return gt.Add(time.Second * time.Duration(uint64(currSlot)*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
+		return gt.Add(time.Duration(currSlot) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	}
 	chain := &mockChain.ChainService{
 		Genesis:        gt,

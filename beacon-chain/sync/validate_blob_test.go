@@ -58,7 +58,7 @@ func TestValidateBlob_InvalidTopic(t *testing.T) {
 func TestValidateBlob_InvalidMessageType(t *testing.T) {
 	ctx := t.Context()
 	p := p2ptest.NewTestP2P(t)
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0)}
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0)}
 	s := &Service{cfg: &config{p2p: p, initialSync: &mockSync.Sync{}, clock: startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot)}}
 	s.newBlobVerifier = testNewBlobVerifier()
 
@@ -144,7 +144,7 @@ func TestValidateBlob_AlreadySeenInCache(t *testing.T) {
 func TestValidateBlob_InvalidTopicIndex(t *testing.T) {
 	ctx := t.Context()
 	p := p2ptest.NewTestP2P(t)
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0)}
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0)}
 	s := &Service{cfg: &config{p2p: p, initialSync: &mockSync.Sync{}, clock: startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot)}}
 	s.newBlobVerifier = testNewBlobVerifier()
 
@@ -256,7 +256,7 @@ func TestValidateBlob_ErrorPathsWithMock(t *testing.T) {
 		t.Run(tt.error.Error(), func(t *testing.T) {
 			ctx := t.Context()
 			p := p2ptest.NewTestP2P(t)
-			chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0)}
+			chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0)}
 			s := &Service{
 				seenBlobCache:     lruwrpr.New(10),
 				seenPendingBlocks: make(map[[32]byte]bool),

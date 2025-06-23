@@ -374,8 +374,9 @@ func TestValidateBeaconBlockPubSub_WithLookahead(t *testing.T) {
 	require.NoError(t, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	offset := int64(blkSlot.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-offset, 0),
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(blkSlot)
+	require.NoError(t, err)
+	chainService := &mock.ChainService{Genesis: time.Now().Add(-1 * sg),
 		DB:    db,
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
@@ -443,8 +444,9 @@ func TestValidateBeaconBlockPubSub_AdvanceEpochsForState(t *testing.T) {
 	require.NoError(t, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	offset := int64(blkSlot.Mul(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-offset, 0),
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(blkSlot)
+	require.NoError(t, err)
+	chainService := &mock.ChainService{Genesis: time.Now().Add(-1 * sg),
 		DB:    db,
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
@@ -1101,7 +1103,7 @@ func TestValidateBeaconBlockPubSub_RejectBlocksFromBadParent(t *testing.T) {
 	msg.Block.ProposerIndex = proposerIdx
 	msg.Block.Slot = blkSlot
 
-	perSlot := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	perSlot := uint64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	// current slot time
 	slotsSinceGenesis := primitives.Slot(1000)
 	// max uint, divided by slot time. But avoid losing precision too much.
@@ -1114,10 +1116,13 @@ func TestValidateBeaconBlockPubSub_RejectBlocksFromBadParent(t *testing.T) {
 	require.NoError(t, err)
 
 	genesisTime := time.Now()
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slotsSinceGenesis)
+	require.NoError(t, err)
+	genesisTime = genesisTime.Add(-1 * sg)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
 	chainService := &mock.ChainService{
-		Genesis: time.Unix(genesisTime.Unix()-int64(slotsSinceGenesis.Mul(perSlot)), 0),
+		Genesis: genesisTime,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
 		},
@@ -1208,7 +1213,7 @@ func TestValidateBeaconBlockPubSub_ValidExecutionPayload(t *testing.T) {
 	msg.Block.ParentRoot = bRoot[:]
 	msg.Block.Slot = 1
 	msg.Block.ProposerIndex = proposerIdx
-	msg.Block.Body.ExecutionPayload.Timestamp = uint64(now.Unix()) + params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	msg.Block.Body.ExecutionPayload.Timestamp = uint64(now.Add(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)).Unix())
 	msg.Block.Body.ExecutionPayload.GasUsed = 10
 	msg.Block.Body.ExecutionPayload.GasLimit = 11
 	msg.Block.Body.ExecutionPayload.BlockHash = bytesutil.PadTo([]byte("blockHash"), 32)

@@ -32,8 +32,8 @@ func TestRegisterSyncSubnetProto(t *testing.T) {
 	coms, _, ok, exp := cache.SyncSubnetIDs.GetSyncCommitteeSubnets(k, 0)
 	require.Equal(t, true, ok, "No cache entry found for validator")
 	assert.Equal(t, uint64(1), uint64(len(coms)))
-	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
-	totalTime := time.Duration(params.BeaconConfig().EpochsPerSyncCommitteePeriod) * epochDuration * time.Second
+	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	totalTime := time.Duration(params.BeaconConfig().EpochsPerSyncCommitteePeriod) * epochDuration
 	receivedTime := time.Until(exp.Round(time.Second)).Round(time.Second)
 	if receivedTime < totalTime {
 		t.Fatalf("Expiration time of %f was less than expected duration of %f ", receivedTime.Seconds(), totalTime.Seconds())
@@ -54,8 +54,8 @@ func TestRegisterSyncSubnet(t *testing.T) {
 	coms, _, ok, exp := cache.SyncSubnetIDs.GetSyncCommitteeSubnets(k, 0)
 	require.Equal(t, true, ok, "No cache entry found for validator")
 	assert.Equal(t, uint64(1), uint64(len(coms)))
-	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)))
-	totalTime := time.Duration(params.BeaconConfig().EpochsPerSyncCommitteePeriod) * epochDuration * time.Second
+	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	totalTime := time.Duration(params.BeaconConfig().EpochsPerSyncCommitteePeriod) * epochDuration
 	receivedTime := time.Until(exp.Round(time.Second)).Round(time.Second)
 	if receivedTime < totalTime {
 		t.Fatalf("Expiration time of %f was less than expected duration of %f ", receivedTime.Seconds(), totalTime.Seconds())
@@ -71,7 +71,7 @@ func pubKey(i uint64) []byte {
 
 func TestService_SubmitSignedAggregateSelectionProof(t *testing.T) {
 	slot := primitives.Slot(0)
-	mock := &mockChain.ChainService{Slot: &slot, Genesis: time.Now().Add(-75 * time.Duration(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)) * time.Second)}
+	mock := &mockChain.ChainService{Slot: &slot, Genesis: time.Now().Add(-75 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)}
 	s := &Service{GenesisTimeFetcher: mock}
 	var err error
 	t.Run("Happy path electra", func(t *testing.T) {

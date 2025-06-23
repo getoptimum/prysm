@@ -160,7 +160,7 @@ func (s *SlotIntervalTicker) startWithIntervals(
 		slot := CurrentSlot(genesisTime)
 		slot++
 		interval := 0
-		st, err := SlotTime(genesisTime, slot)
+		st, err := StartTime(genesisTime, slot)
 		if err != nil {
 			// TODO(preston): Handle.
 			panic(err) // lint:nopanic -- DEBUG
@@ -177,7 +177,7 @@ func (s *SlotIntervalTicker) startWithIntervals(
 					interval = 0
 					slot++
 				}
-				st, err := SlotTime(genesisTime, slot)
+				st, err := StartTime(genesisTime, slot)
 				if err != nil {
 					// TODO(preston): Handle.
 					panic(err) // lint:nopanic -- DEBUG

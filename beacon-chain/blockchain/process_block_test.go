@@ -2329,7 +2329,10 @@ func TestFillMissingBlockPayloadId_PrepareAllPayloads(t *testing.T) {
 // boost. It alters the genesisTime tracked by the store.
 func driftGenesisTime(s *Service, slot primitives.Slot, delay time.Duration) {
 	now := time.Now()
-	slotDuration := time.Duration(slot) * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
+	slotDuration, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot)
+	if err != nil {
+		panic(err) // This is a test helper function
+	}
 	genesis := now.Add(-slotDuration - delay)
 	s.SetGenesisTime(genesis)
 	s.cfg.ForkChoiceStore.SetGenesisTime(genesis)

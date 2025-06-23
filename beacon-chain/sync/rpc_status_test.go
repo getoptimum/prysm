@@ -31,6 +31,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/testing/require"
 	"github.com/OffchainLabs/prysm/v6/testing/util"
 	prysmTime "github.com/OffchainLabs/prysm/v6/time"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -193,10 +194,12 @@ func TestStatusRPCHandler_ReturnsHelloMessage(t *testing.T) {
 		Epoch: 3,
 		Root:  finalizedRoot[:],
 	}
-	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
-	genTime := time.Now().Unix() - totalSec
 
-	gt := time.Unix(genTime, 0)
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(5))
+	require.NoError(t, err)
+	genTime := time.Now().Add(-1 * sg)
+
+	gt := genTime
 	vr := [32]byte{'A'}
 	r := &Service{
 		cfg: &config{
@@ -528,8 +531,9 @@ func TestStatusRPCRequest_FinalizedBlockExists(t *testing.T) {
 		Epoch: 3,
 		Root:  finalizedRoot[:],
 	}
-	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(5 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
-	genTime := time.Now().Unix() - totalSec
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(5))
+	require.NoError(t, err)
+	genTime := time.Now().Add(-1 * sg)
 	chain := &mock.ChainService{
 		State:               genesisState,
 		FinalizedCheckPoint: finalizedCheckpt,
@@ -538,7 +542,7 @@ func TestStatusRPCRequest_FinalizedBlockExists(t *testing.T) {
 			PreviousVersion: params.BeaconConfig().GenesisForkVersion,
 			CurrentVersion:  params.BeaconConfig().GenesisForkVersion,
 		},
-		Genesis:        time.Unix(genTime, 0),
+		Genesis:        genTime,
 		ValidatorsRoot: [32]byte{'A'},
 		FinalizedRoots: map[[32]byte]bool{
 			finalizedRoot: true,
@@ -562,7 +566,7 @@ func TestStatusRPCRequest_FinalizedBlockExists(t *testing.T) {
 			PreviousVersion: params.BeaconConfig().GenesisForkVersion,
 			CurrentVersion:  params.BeaconConfig().GenesisForkVersion,
 		},
-		Genesis:        time.Unix(genTime, 0),
+		Genesis:        genTime,
 		ValidatorsRoot: [32]byte{'A'},
 		FinalizedRoots: map[[32]byte]bool{
 			finalizedRoot: true,
@@ -714,8 +718,9 @@ func TestStatusRPCRequest_FinalizedBlockSkippedSlots(t *testing.T) {
 		require.NoError(t, db.SaveFinalizedCheckpoint(t.Context(), finalizedCheckpt))
 
 		epoch := expectedFinalizedEpoch.Add(2)
-		totalSec := uint64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(epoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
-		gt := time.Unix(time.Now().Unix()-int64(totalSec), 0)
+		sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(epoch))
+		require.NoError(t, err)
+		gt := time.Now().Add(-1 * sg)
 		vr := [32]byte{'A'}
 		chain := &mock.ChainService{
 			State:               nState,

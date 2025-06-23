@@ -53,7 +53,7 @@ func FuzzValidateBeaconBlockPubSub_Phase0(f *testing.F) {
 	require.NoError(f, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0),
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0),
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
@@ -89,7 +89,7 @@ func FuzzValidateBeaconBlockPubSub_Phase0(f *testing.F) {
 		r.cfg.p2p = p2ptest.NewFuzzTestP2P()
 		r.rateLimiter = newRateLimiter(r.cfg.p2p)
 		cService := &mock.ChainService{
-			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)*10000000), 0),
+			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*10000000), 0),
 			State:   beaconState,
 			FinalizedCheckPoint: &ethpb.Checkpoint{
 				Epoch: 0,
@@ -136,7 +136,7 @@ func FuzzValidateBeaconBlockPubSub_Altair(f *testing.F) {
 	require.NoError(f, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0),
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0),
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
@@ -173,7 +173,7 @@ func FuzzValidateBeaconBlockPubSub_Altair(f *testing.F) {
 		r.cfg.p2p = p2ptest.NewFuzzTestP2P()
 		r.rateLimiter = newRateLimiter(r.cfg.p2p)
 		cService := &mock.ChainService{
-			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)*10000000), 0),
+			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*10000000), 0),
 			State:   beaconState,
 			FinalizedCheckPoint: &ethpb.Checkpoint{
 				Epoch: 0,
@@ -220,7 +220,7 @@ func FuzzValidateBeaconBlockPubSub_Bellatrix(f *testing.F) {
 	require.NoError(f, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)), 0),
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0),
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
@@ -257,7 +257,7 @@ func FuzzValidateBeaconBlockPubSub_Bellatrix(f *testing.F) {
 		r.cfg.p2p = p2ptest.NewFuzzTestP2P()
 		r.rateLimiter = newRateLimiter(r.cfg.p2p)
 		cService := &mock.ChainService{
-			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeDuration.SlotDuration(0)*10000000), 0),
+			Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)*10000000), 0),
 			State:   beaconState,
 			FinalizedCheckPoint: &ethpb.Checkpoint{
 				Epoch: 0,
