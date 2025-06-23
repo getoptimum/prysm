@@ -27,9 +27,9 @@ import (
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
-	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -112,7 +112,9 @@ type testServiceRequirements struct {
 
 func minimalTestService(t *testing.T, opts ...Option) (*Service, *testServiceRequirements) {
 	ctx := t.Context()
-	genesis := time.Now().Add(-1 * 4 * time.Duration(params.BeaconConfig().SlotsPerEpoch*primitives.Slot(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))) * time.Second) // Genesis was 4 epochs ago.
+	since, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(4))
+	require.NoError(t, err)
+	genesis := time.Now().Add(-since)
 	beaconDB := testDB.SetupDB(t)
 	fcs := doublylinkedtree.New()
 	fcs.SetGenesisTime(genesis)

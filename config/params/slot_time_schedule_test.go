@@ -1,6 +1,7 @@
 package params_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -101,6 +102,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 		slot primitives.Slot
 		// Want
 		since time.Duration
+		error bool
 	}{
 		{
 			name: "single entry",
@@ -112,6 +114,17 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 			},
 			slot:  slots.UnsafeEpochStart(33),
 			since: 12 * time.Second * 33 * time.Duration(params.BeaconConfig().SlotsPerEpoch),
+		},
+		{
+			name: "single entry 1s",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: time.Second,
+				},
+			},
+			slot:  16,
+			since: 16 * time.Second,
 		},
 		{
 			name: "multiple entries",
@@ -156,14 +169,114 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 				return firstEntryDuration + secondEntryDuration + remaining
 			}(),
 		},
+		{
+			name: "overflow",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot:  math.MaxUint64,
+			error: true,
+		},
 		// TODO: Unsorted.
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.sch.SinceGenesis(tt.slot)
-			require.NoError(t, err)
+			if !tt.error {
+				require.NoError(t, err)
+			} else {
+				require.Equal(t, true, err != nil, "did not get any error when one was expected")
+			}
 			require.Equal(t, tt.since, got)
+		})
+	}
+}
+
+func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
+	tests := []struct {
+		name string
+		// Inputs
+		sch  params.SlotTimeSchedule
+		slot primitives.Slot
+		// Want
+		duration time.Duration
+	}{
+		{
+			name: "single entry",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				},
+			},
+			slot:     slots.UnsafeEpochStart(33),
+			duration: 12 * time.Second,
+		},
+		{
+			name: "multiple entries",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        32,
+					SlotDuration: 10 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot:     slots.UnsafeEpochStart(33),
+			duration: 10 * time.Second,
+		},
+		{
+			name: "multiple entries, last entry",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        32,
+					SlotDuration: 10 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot:     slots.UnsafeEpochStart(100),
+			duration: 1 * time.Second,
+		},
+		{
+			name: "multiple entries, first entry",
+			sch: params.SlotTimeSchedule{
+				{
+					Epoch:        0,
+					SlotDuration: 12 * time.Second,
+				}, {
+					Epoch:        32,
+					SlotDuration: 10 * time.Second,
+				}, {
+					Epoch:        64,
+					SlotDuration: 1 * time.Second,
+				},
+			},
+			slot:     slots.UnsafeEpochStart(3),
+			duration: 12 * time.Second,
+		},
+		// TODO: Unsorted.
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.sch.SlotDuration(tt.slot)
+			require.Equal(t, tt.duration, got)
 		})
 	}
 }

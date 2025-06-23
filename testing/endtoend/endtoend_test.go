@@ -378,7 +378,7 @@ func (r *testRunner) testBeaconChainSync(ctx context.Context, g *errgroup.Group,
 	}
 
 	// Sleep a slot to make sure the synced state is made.
-	time.Sleep(time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
+	time.Sleep(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	syncEvaluators := []e2etypes.Evaluator{ev.FinishedSyncing, ev.AllNodesHaveSameHead}
 	// Only execute in the middle of an epoch to prevent race conditions around slot 0.
 	ticker := helpers.NewEpochTicker(tickingStartTime, secondsPerEpoch)

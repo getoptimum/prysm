@@ -197,7 +197,7 @@ func pubsubGossipParam() pubsub.GossipSubParams {
 func setPubSubParameters() {
 	// TODO(preston): THis needs to be made aware of the genesis time.
 	// Seen TTL is 2 epochs.
-	seenTtl := 2 * 2 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
+	seenTtl := 2 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
 	pubsub.TimeCacheDuration = seenTtl
 }
 

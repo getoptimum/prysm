@@ -354,7 +354,7 @@ func TestProcessPendingAtts_HasBlockSaveUnAggregatedAttElectra_VerifyAlreadySeen
 			p2p:                 p1,
 			beaconDB:            db,
 			chain:               chain,
-			clock:               startup.NewClock(chain.Genesis.Add(time.Duration(-1*int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))*time.Second), chain.ValidatorsRoot),
+			clock:               startup.NewClock(chain.Genesis.Add(-params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), chain.ValidatorsRoot),
 			attPool:             attestations.NewPool(),
 			attestationNotifier: &mock.SimpleNotifier{Feed: opn},
 		},

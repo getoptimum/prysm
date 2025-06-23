@@ -99,7 +99,7 @@ func NewSlotTickerWithOffset(genesisTime time.Time, offset time.Duration, schedu
 	if genesisTime.Unix() == 0 {
 		panic("zero genesis time")
 	}
-	if offset > time.Duration(schedule.CurrentSlot(genesisTime))*time.Second { // TODO: Handle schedule validation. It should check that all durations are greater than this value.
+	if offset > schedule.CurrentSlotDuration(genesisTime) { // TODO: Handle schedule validation. It should check that all durations are greater than this value.
 		panic("invalid ticker offset")
 	}
 	ticker := &SlotTicker{

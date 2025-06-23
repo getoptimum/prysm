@@ -17,6 +17,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/network/forks"
 	"github.com/OffchainLabs/prysm/v6/runtime/version"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 )
 
 func TestService_CheckForNextEpochFork(t *testing.T) {
@@ -499,5 +500,9 @@ func TestService_CheckForPreviousEpochFork(t *testing.T) {
 
 // oneEpoch returns the duration of one epoch.
 func oneEpoch() time.Duration {
-	return params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1))
+	if err != nil {
+		panic(err) // lint:nopanic -- This is test code and should never overflow.
+	}
+	return sg
 }

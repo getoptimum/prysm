@@ -25,7 +25,7 @@ import (
 )
 
 // This defines how often a node cleans up and processes pending attestations in the queue.
-var processPendingAttsPeriod = slots.DivideSlotBy(2 /* twice per slot */)
+var processPendingAttsPeriod = slots.DivideSlotBy(0 /*slot TODO(preston): gotta deal with this*/, 2 /* twice per slot */)
 var pendingAttsLimit = 10000
 
 // This processes pending attestation queues on every `processPendingAttsPeriod`.

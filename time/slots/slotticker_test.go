@@ -13,8 +13,9 @@ var _ Ticker = (*SlotTicker)(nil)
 
 func TestSlotTicker(t *testing.T) {
 	ticker := &SlotTicker{
-		c:    make(chan primitives.Slot),
-		done: make(chan struct{}),
+		c:        make(chan primitives.Slot),
+		done:     make(chan struct{}),
+		schedule: params.BeaconConfig().SlotTimeSchedule,
 	}
 	defer ticker.Done()
 
@@ -67,8 +68,9 @@ func TestSlotTicker(t *testing.T) {
 
 func TestSlotTickerGenesis(t *testing.T) {
 	ticker := &SlotTicker{
-		c:    make(chan primitives.Slot),
-		done: make(chan struct{}),
+		c:        make(chan primitives.Slot),
+		done:     make(chan struct{}),
+		schedule: params.BeaconConfig().SlotTimeSchedule,
 	}
 	defer ticker.Done()
 
@@ -114,8 +116,8 @@ func TestSlotTickerGenesis(t *testing.T) {
 
 func TestGetSlotTickerWithOffset_OK(t *testing.T) {
 	genesisTime := time.Now()
-	secondsPerSlot := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
-	offset := time.Duration(secondsPerSlot/2) * time.Second
+	slotDuration := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	offset := slotDuration / 2
 
 	offsetTicker := NewSlotTickerWithOffset(genesisTime, offset, params.BeaconConfig().SlotTimeSchedule)
 	normalTicker := NewSlotTicker(genesisTime, params.BeaconConfig().SlotTimeSchedule)

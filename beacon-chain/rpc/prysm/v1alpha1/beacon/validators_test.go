@@ -1553,7 +1553,7 @@ func TestServer_GetValidatorParticipation_CurrentAndPrevEpoch(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(headState.Slot())
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1))
 	require.NoError(t, err)
 	gt := time.Now().Add(-1 * sg)
 	bs := &Server{
@@ -1636,7 +1636,7 @@ func TestServer_GetValidatorParticipation_OrphanedUntilGenesis(t *testing.T) {
 	require.NoError(t, beaconDB.SaveState(ctx, headState, params.BeaconConfig().ZeroHash))
 
 	m := &mock.ChainService{State: headState}
-	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(headState.Slot())
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1))
 	require.NoError(t, err)
 	gt := time.Now().Add(-1 * sg)
 	bs := &Server{
@@ -1756,7 +1756,7 @@ func runGetValidatorParticipationCurrentAndPrevEpoch(t *testing.T, genState stat
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, gRoot))
 
 	m := &mock.ChainService{State: genState}
-	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(primitives.Slot(params.BeaconConfig().SlotsPerEpoch))
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1))
 	require.NoError(t, err)
 	gt := time.Now().Add(-1 * sg)
 	bs := &Server{

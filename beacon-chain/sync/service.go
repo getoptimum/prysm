@@ -74,7 +74,7 @@ var (
 	// TODO(preston): This will need to be updated.
 	pendingBlockExpTime = params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
 	// time to allow processing early blocks.
-	earlyBlockProcessingTolerance = slots.MultiplySlotBy(2)
+	earlyBlockProcessingTolerance = slots.MultiplySlotBy(0, 2) // TODO(preston): This will need to be dynmanic
 	// time to allow processing early attestations.
 	earlyAttestationProcessingTolerance = params.BeaconConfig().MaximumGossipClockDisparityDuration()
 	errWrongMessage                     = errors.New("wrong pubsub message")

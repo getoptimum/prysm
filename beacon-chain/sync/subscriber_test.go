@@ -444,10 +444,9 @@ func TestFilterSubnetPeers(t *testing.T) {
 	defer cancel()
 	currSlot := primitives.Slot(100)
 
-	gt := time.Now()
-	genPlus100 := func() time.Time {
-		return gt.Add(time.Duration(currSlot) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
-	}
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(currSlot)
+	require.NoError(t, err)
+	gt := time.Now().Add(-sg)
 	chain := &mockChain.ChainService{
 		Genesis:        gt,
 		ValidatorsRoot: [32]byte{'A'},
@@ -455,7 +454,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 			{}: true,
 		},
 	}
-	clock := startup.NewClock(chain.Genesis, chain.ValidatorsRoot, startup.WithNower(genPlus100))
+	clock := startup.NewClock(chain.Genesis, chain.ValidatorsRoot)
 	require.Equal(t, currSlot, clock.CurrentSlot())
 	r := Service{
 		ctx: ctx,
@@ -569,7 +568,7 @@ func TestSubscribeWithSyncSubnets_DynamicSwitchFork(t *testing.T) {
 	params.BeaconConfig().InitializeForkSchedule()
 	ctx, cancel := context.WithCancel(t.Context())
 	currSlot := primitives.Slot(100)
-	gt := time.Now().Add(-time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)
+	gt := time.Now().Add(-params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	vr := [32]byte{'A'}
 	r := Service{
 		ctx: ctx,
@@ -663,14 +662,14 @@ func TestSubscribe_ReceivesLCOptimisticUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
-	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 
-	genesisDrift := slotsPerEpoch*secondsPerSlot + 2*secondsPerSlot + secondsPerSlot/slotIntervals
+	genesisDrift, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1) + 2)
+	require.NoError(t, err)
+	genesisDrift += params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) / time.Duration(slotIntervals)
 	chainService := &mockChain.ChainService{
 		ValidatorsRoot: [32]byte{'A'},
-		Genesis:        time.Unix(time.Now().Unix()-int64(genesisDrift), 0),
+		Genesis:        time.Now().Add(-genesisDrift),
 	}
 	d := db.SetupDB(t)
 	r := Service{
@@ -691,7 +690,6 @@ func TestSubscribe_ReceivesLCOptimisticUpdate(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	var err error
 	p2pService.Digest, err = r.currentForkDigest()
 	require.NoError(t, err)
 	r.subscribe(topic, r.validateLightClientOptimisticUpdate, func(ctx context.Context, msg proto.Message) error {
@@ -730,14 +728,14 @@ func TestSubscribe_ReceivesLCFinalityUpdate(t *testing.T) {
 	cfg.ForkVersionSchedule[[4]byte{1, 0, 0, 0}] = 1
 	params.OverrideBeaconConfig(cfg)
 
-	secondsPerSlot := int(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))
 	slotIntervals := int(params.BeaconConfig().IntervalsPerSlot)
-	slotsPerEpoch := int(params.BeaconConfig().SlotsPerEpoch)
 
-	genesisDrift := slotsPerEpoch*secondsPerSlot + 2*secondsPerSlot + secondsPerSlot/slotIntervals
+	genesisDrift, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(1) + 2)
+	require.NoError(t, err)
+	genesisDrift += params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) / time.Duration(slotIntervals)
 	chainService := &mockChain.ChainService{
 		ValidatorsRoot: [32]byte{'A'},
-		Genesis:        time.Unix(time.Now().Unix()-int64(genesisDrift), 0),
+		Genesis:        time.Now().Add(-genesisDrift),
 	}
 	d := db.SetupDB(t)
 	r := Service{
@@ -758,7 +756,6 @@ func TestSubscribe_ReceivesLCFinalityUpdate(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	var err error
 	p2pService.Digest, err = r.currentForkDigest()
 	require.NoError(t, err)
 	r.subscribe(topic, r.validateLightClientFinalityUpdate, func(ctx context.Context, msg proto.Message) error {

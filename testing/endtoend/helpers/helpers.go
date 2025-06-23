@@ -347,7 +347,7 @@ func EpochTickerStartTime(genesis *eth.Genesis) time.Time {
 	epochTime := time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(genesis.GenesisTime.AsTime()) // TODO(preston): How to update this?
 	epochSecondsHalf := epochTime / 2
 	// Adding a half slot here to ensure the requests are in the middle of an epoch.
-	middleOfEpoch := epochSecondsHalf + slots.DivideSlotBy(2 /* half a slot */)
+	middleOfEpoch := epochSecondsHalf + slots.DivideSlotBy(0 /*slot TODO(preston): gotta deal with this*/, 2 /* half a slot */)
 	genesisTime := time.Unix(genesis.GenesisTime.Seconds, 0)
 	// Offsetting the ticker from genesis so it ticks in the middle of an epoch, in order to keep results consistent.
 	return genesisTime.Add(middleOfEpoch)

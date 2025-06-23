@@ -71,9 +71,11 @@ func pubKey(i uint64) []byte {
 
 func TestService_SubmitSignedAggregateSelectionProof(t *testing.T) {
 	slot := primitives.Slot(0)
-	mock := &mockChain.ChainService{Slot: &slot, Genesis: time.Now().Add(-75 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)}
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(75)
+	require.NoError(t, err)
+	genesis := time.Now().Add(-sg)
+	mock := &mockChain.ChainService{Slot: &slot, Genesis: genesis}
 	s := &Service{GenesisTimeFetcher: mock}
-	var err error
 	t.Run("Happy path electra", func(t *testing.T) {
 		slot, err = slots.EpochEnd(params.BeaconConfig().ElectraForkEpoch)
 		require.NoError(t, err)

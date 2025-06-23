@@ -82,6 +82,7 @@ func TestWaitForActivation_ContextClosed(t *testing.T) {
 		Eth1InfoFetcher:   &mockExecution.Chain{},
 		DepositFetcher:    depositCache,
 		HeadFetcher:       &mockChain.ChainService{State: beaconState, Root: genesisRoot[:]},
+		TimeFetcher:       &mockChain.ChainService{Genesis: time.Now()},
 	}
 	req := &ethpb.ValidatorActivationRequest{
 		PublicKeys: [][]byte{pubKey(1)},

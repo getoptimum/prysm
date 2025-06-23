@@ -38,6 +38,7 @@ func (g *Clock) GenesisValidatorsRoot() [32]byte {
 
 // CurrentSlot returns the current slot relative to the time.Time value that Clock embeds.
 func (g *Clock) CurrentSlot() types.Slot {
+	// where test setup is responsible for setting the genesis time correctly. It's usually not a big deal.
 	return params.BeaconConfig().SlotTimeSchedule.CurrentSlot(g.t)
 }
 

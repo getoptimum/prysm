@@ -11,7 +11,6 @@ import (
 	"github.com/OffchainLabs/prysm/v6/runtime/version"
 	prysmTime "github.com/OffchainLabs/prysm/v6/time"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // MaxSlotBuffer specifies the max buffer given to slots from
@@ -39,17 +38,15 @@ func EpochsSinceGenesis(genesis time.Time) primitives.Epoch {
 // parameter by a specified number. It returns a value of time.Duration
 // in milliseconds, useful for dividing values such as 1 second into
 // millisecond-based durations.
-// Deprecated: This assumes 12 seconds per slot. TODO(preston): Remove this method.
-func DivideSlotBy(timesPerSlot int64) time.Duration {
-	return time.Duration(int64(12*1000)/timesPerSlot) * time.Millisecond
+func DivideSlotBy(slot primitives.Slot, timesPerSlot int64) time.Duration {
+	return params.BeaconConfig().SlotTimeSchedule.SlotDuration(slot) / time.Duration(timesPerSlot)
 }
 
 // MultiplySlotBy multiplies the SECONDS_PER_SLOT configuration
 // parameter by a specified number. It returns a value of time.Duration
 // in millisecond-based durations.
-// Deprecated: This assumes 12 seconds per slot. TODO(preston): Remove this method.
-func MultiplySlotBy(times int64) time.Duration {
-	return time.Duration(int64(12)*times) * time.Second
+func MultiplySlotBy(slot primitives.Slot, times int64) time.Duration {
+	return params.BeaconConfig().SlotTimeSchedule.SlotDuration(slot) * time.Duration(times)
 }
 
 // AbsoluteValueSlotDifference between two slots.
@@ -270,7 +267,7 @@ func SinceSlotStart(s primitives.Slot, genesis time.Time, timestamp time.Time) (
 	if err != nil {
 		return 0, fmt.Errorf("could not determine how long since geneis for the given slot: %w", err)
 	}
-	delta := timestamp.Sub(genesis).Abs() // TODO(preston): Check the order, Abs should not be necessary.
+	delta := timestamp.Sub(genesis)
 	if delta < sinceGenesis {
 		return 0, fmt.Errorf("provided timestamp (%d(s) since genesis) is before slot time (%d(s) since genesis) and the result would be a negative number", delta, sinceGenesis)
 	}
@@ -289,26 +286,4 @@ func WithinVotingWindow(genesis time.Time, slot primitives.Slot) bool {
 // MaxSafeEpoch gives the largest epoch value that can be safely converted to a slot.
 func MaxSafeEpoch() primitives.Epoch {
 	return primitives.Epoch(math.MaxUint64 / uint64(params.BeaconConfig().SlotsPerEpoch))
-}
-
-// SecondsUntilNextEpochStart returns how many seconds until the next Epoch start from the current time and slot
-func SecondsUntilNextEpochStart(genesis time.Time) (uint64, error) {
-	currentSlot := CurrentSlot(genesis)
-	firstSlotOfNextEpoch, err := EpochStart(ToEpoch(currentSlot) + 1)
-	if err != nil {
-		return 0, err
-	}
-	nextEpochStartTime, err := StartTime(genesis, firstSlotOfNextEpoch)
-	if err != nil {
-		return 0, err
-	}
-	es := nextEpochStartTime.Unix()
-	n := time.Now().Unix()
-	waitTime := uint64(es - n)
-	log.WithFields(logrus.Fields{
-		"current_slot":          currentSlot,
-		"next_epoch_start_slot": firstSlotOfNextEpoch,
-		"is_epoch_start":        IsEpochStart(currentSlot),
-	}).Debugf("%d seconds until next epoch", waitTime)
-	return waitTime, nil
 }

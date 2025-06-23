@@ -58,13 +58,16 @@ func TestValidateBlob_InvalidTopic(t *testing.T) {
 func TestValidateBlob_InvalidMessageType(t *testing.T) {
 	ctx := t.Context()
 	p := p2ptest.NewTestP2P(t)
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0)}
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(1)
+	require.NoError(t, err)
+	genesis := time.Now().Add(-sg)
+	chainService := &mock.ChainService{Genesis: genesis}
 	s := &Service{cfg: &config{p2p: p, initialSync: &mockSync.Sync{}, clock: startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot)}}
 	s.newBlobVerifier = testNewBlobVerifier()
 
 	msg := util.NewBeaconBlock()
 	buf := new(bytes.Buffer)
-	_, err := p.Encoding().EncodeGossip(buf, msg)
+	_, err = p.Encoding().EncodeGossip(buf, msg)
 	require.NoError(t, err)
 
 	topic := p2p.GossipTypeMapping[reflect.TypeOf(msg)]
@@ -144,14 +147,17 @@ func TestValidateBlob_AlreadySeenInCache(t *testing.T) {
 func TestValidateBlob_InvalidTopicIndex(t *testing.T) {
 	ctx := t.Context()
 	p := p2ptest.NewTestP2P(t)
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0)}
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(1)
+	require.NoError(t, err)
+	genesis := time.Now().Add(-sg)
+	chainService := &mock.ChainService{Genesis: genesis}
 	s := &Service{cfg: &config{p2p: p, initialSync: &mockSync.Sync{}, clock: startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot)}}
 	s.newBlobVerifier = testNewBlobVerifier()
 
 	_, scs := util.GenerateTestDenebBlockWithSidecar(t, [32]byte{}, chainService.CurrentSlot()+1, 1)
 	msg := scs[0].BlobSidecar
 	buf := new(bytes.Buffer)
-	_, err := p.Encoding().EncodeGossip(buf, msg)
+	_, err = p.Encoding().EncodeGossip(buf, msg)
 	require.NoError(t, err)
 
 	topic := p2p.GossipTypeMapping[reflect.TypeOf(msg)]

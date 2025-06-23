@@ -315,7 +315,7 @@ func TestUpdateProposerSettingsAt_EpochEndOk(t *testing.T) {
 
 	v := &testutil.FakeValidator{
 		Km:                  &mockKeymanager{accountsChangedFeed: &event.Feed{}},
-		ProposerSettingWait: time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)-1) * time.Second,
+		ProposerSettingWait: params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) - 1*time.Second,
 	}
 	err := v.SetProposerSettings(t.Context(), &proposer.Settings{
 		DefaultConfig: &proposer.Option{
@@ -387,9 +387,10 @@ func TestRunnerPushesProposerSettings_ValidContext(t *testing.T) {
 	// We want to test that mocked methods are called with a live context, but only while the timed context is valid.
 	liveCtx := gomock.Cond(func(ctx context.Context) bool { return ctx.Err() == nil || timedCtx.Err() != nil })
 	// Mocked client(s) setup.
+	genesisTime := time.Now().Truncate(time.Second).Add(time.Second)
 	vcm := validatormock.NewMockValidatorClient(ctrl)
 	vcm.EXPECT().WaitForChainStart(liveCtx, gomock.Any()).Return(&ethpb.ChainStartResponse{
-		GenesisTime: uint64(time.Now().Add(-1 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)).Unix()),
+		GenesisTime: uint64(genesisTime.Unix()),
 	}, nil)
 	vcm.EXPECT().MultipleValidatorStatus(liveCtx, gomock.Any()).DoAndReturn(func(ctx context.Context, req *ethpb.MultipleValidatorStatusRequest) (*ethpb.MultipleValidatorStatusResponse, error) {
 		defer assertValidContext(t, timedCtx, ctx)

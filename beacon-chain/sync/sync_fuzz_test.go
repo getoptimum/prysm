@@ -30,6 +30,7 @@ import (
 	gcache "github.com/patrickmn/go-cache"
 )
 
+// TODO(preston): There are a few issues in this file with setting up genesis time. These fuzz tests are not run and probably do not work, but should be checked anyway.
 func FuzzValidateBeaconBlockPubSub_Phase0(f *testing.F) {
 	db := dbtest.SetupDB(f)
 	p := p2ptest.NewFuzzTestP2P()
@@ -53,7 +54,10 @@ func FuzzValidateBeaconBlockPubSub_Phase0(f *testing.F) {
 	require.NoError(f, err)
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
-	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)), 0),
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(1)
+	require.NoError(f, err)
+	genesis := time.Now().Add(-sg)
+	chainService := &mock.ChainService{Genesis: genesis,
 		State: beaconState,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,

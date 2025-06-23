@@ -707,7 +707,10 @@ func TestSubmitContributionAndProofs(t *testing.T) {
 
 func TestSubmitAggregateAndProofs(t *testing.T) {
 	slot := primitives.Slot(0)
-	mock := &mockChain.ChainService{Slot: &slot, Genesis: time.Now().Add(-1 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second)}
+	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(1)
+	require.NoError(t, err)
+	genesis := time.Now().Add(-sg)
+	mock := &mockChain.ChainService{Slot: &slot, Genesis: genesis}
 	s := &Server{
 		CoreService: &core.Service{GenesisTimeFetcher: mock},
 		TimeFetcher: mock,
@@ -1030,10 +1033,12 @@ func TestSubmitSyncCommitteeSubscription(t *testing.T) {
 	chainSlot := primitives.Slot(0)
 	chain := &mockChain.ChainService{
 		State: bs, Root: genesisRoot[:], Slot: &chainSlot,
+		Genesis: bs.GenesisTime(),
 	}
 	s := &Server{
-		HeadFetcher: chain,
-		SyncChecker: &mockSync.Sync{IsSyncing: false},
+		HeadFetcher:      chain,
+		SyncChecker:      &mockSync.Sync{IsSyncing: false},
+		ChainInfoFetcher: chain,
 	}
 
 	t.Run("single", func(t *testing.T) {

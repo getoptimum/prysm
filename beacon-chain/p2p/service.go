@@ -48,7 +48,7 @@ const (
 
 var (
 	// Refresh rate of ENR set at twice per slot.
-	refreshRate = slots.DivideSlotBy(2)
+	refreshRate = slots.DivideSlotBy(0, 2) // TODO(preston): Handle this at runtime.
 
 	// maxDialTimeout is the timeout for a single peer dial.
 	maxDialTimeout = params.BeaconConfig().RespTimeoutDuration()

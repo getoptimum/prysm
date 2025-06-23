@@ -15,7 +15,6 @@ import (
 	"github.com/OffchainLabs/prysm/v6/runtime/version"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
-	prysmTime "github.com/OffchainLabs/prysm/v6/time"
 )
 
 func TestSyncCommitteeIndices_CanGet(t *testing.T) {
@@ -312,7 +311,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(15)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg)
+					return time.Now().Add(-1 * sg)
 				}(),
 			},
 		},
@@ -324,7 +323,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(15)
 					require.NoError(t, err)
 					sd := params.BeaconConfig().SlotTimeSchedule.SlotDuration(15)
-					return prysmTime.Now().Add(-1 * sg).Add(-1 * (sd / 2))
+					return time.Now().Add(-1 * sg).Add(-1 * (sd / 2))
 				}(),
 			},
 		},
@@ -335,7 +334,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(16)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg).Add(-1 * 200 * time.Millisecond)
+					return time.Now().Add(-1 * sg).Add(-1 * 200 * time.Millisecond)
 				}(),
 			},
 		},
@@ -346,7 +345,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(15)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg)
+					return time.Now().Add(-1 * sg)
 				}(),
 			},
 			wantedErr: "(message slot 16) not within allowable range of",
@@ -358,19 +357,19 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(100)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration())
+					return time.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration())
 				}(),
 			},
 			wantedErr: "",
 		},
 		{
-			name: "sync_message.slot == current_slot+CLOCK_DISPARITY-1000ms",
+			name: "sync_message.slot == current_slot+CLOCK_DISPARITY-1001ms",
 			args: args{
 				syncMessageSlot: 100,
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(100)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration()).Add(-1 * time.Second)
+					return time.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration()).Add(1001 * time.Millisecond)
 				}(),
 			},
 			wantedErr: "(message slot 100) not within allowable range of",
@@ -382,7 +381,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(100)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg).Add(params.BeaconConfig().MaximumGossipClockDisparityDuration())
+					return time.Now().Add(-1 * sg).Add(params.BeaconConfig().MaximumGossipClockDisparityDuration())
 				}(),
 			},
 			wantedErr: "",
@@ -394,7 +393,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(100)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration())
+					return time.Now().Add(-1 * sg).Add(-1 * params.BeaconConfig().MaximumGossipClockDisparityDuration())
 				}(),
 			},
 			wantedErr: "(message slot 101) not within allowable range of",
@@ -406,7 +405,7 @@ func Test_ValidateSyncMessageTime(t *testing.T) {
 				genesisTime: func() time.Time {
 					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(15)
 					require.NoError(t, err)
-					return prysmTime.Now().Add(-1 * sg)
+					return time.Now().Add(-1 * sg)
 				}(),
 			},
 			wantedErr: "which exceeds max allowed value relative to the local clock",

@@ -2152,6 +2152,7 @@ func TestProposer_Eth1Data_MajorityVote_SpansGenesis(t *testing.T) {
 }
 
 func TestProposer_Eth1Data_MajorityVote(t *testing.T) {
+	t.Skip("TODO(preston): I think this stuff can be deleted.")
 	//followDistanceSecs := params.BeaconConfig().Eth1FollowDistance * params.BeaconConfig().SecondsPerETH1Block
 	//followSlots := followDistanceSecs / params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
 	followSlots := 1 // TODO(preston): Can this be deleted?

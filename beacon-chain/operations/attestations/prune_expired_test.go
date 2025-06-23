@@ -8,11 +8,11 @@ import (
 	"github.com/OffchainLabs/prysm/v6/async"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
-	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
 	"github.com/OffchainLabs/prysm/v6/testing/util"
+	"github.com/OffchainLabs/prysm/v6/time/slots"
 	"github.com/prysmaticlabs/go-bitfield"
 )
 
@@ -137,9 +137,9 @@ func TestPruneExpired_ExpiredDeneb(t *testing.T) {
 
 	// Rewind back 4 epochs + 10 slots worth of time.
 	sd := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
-	s.SetGenesisTime(time.Now().Add(-1 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * sd).Add(-10 * sd))
-	secondEpochStart := primitives.Slot(2 * uint64(params.BeaconConfig().SlotsPerEpoch))
-	thirdEpochStart := primitives.Slot(3 * uint64(params.BeaconConfig().SlotsPerEpoch))
+	s.SetGenesisTime(time.Now().Add(-4 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * sd).Add(-10 * sd))
+	secondEpochStart := slots.UnsafeEpochStart(2)
+	thirdEpochStart := slots.UnsafeEpochStart(3)
 
 	assert.Equal(t, true, s.expired(secondEpochStart), "Should be expired")
 	assert.Equal(t, false, s.expired(thirdEpochStart), "Should not be expired")

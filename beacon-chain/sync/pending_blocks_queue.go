@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var processPendingBlocksPeriod = slots.DivideSlotBy(3 /* times per slot */)
+var processPendingBlocksPeriod = slots.DivideSlotBy(0 /*slot TODO(preston): gotta deal with this*/, 3 /* times per slot */)
 
 const maxPeerRequest = 50
 const numOfTries = 5

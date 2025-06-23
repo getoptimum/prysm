@@ -163,7 +163,7 @@ func TestForkChoice_GetProposerHead(t *testing.T) {
 		saved := f.store.headNode.timestamp
 		sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(f.store.headNode.slot)
 		require.NoError(t, err)
-		headTimeStamp := f.store.genesisTime.Add(sg*params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) + time.Second)
+		headTimeStamp := f.store.genesisTime.Add(sg + time.Second)
 		f.store.headNode.timestamp = headTimeStamp
 		require.Equal(t, childRoot, f.GetProposerHead())
 		f.store.headNode.timestamp = saved

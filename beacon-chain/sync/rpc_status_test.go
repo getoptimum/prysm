@@ -982,8 +982,12 @@ func TestShouldResync(t *testing.T) {
 			name: "two epochs behind, resync ok",
 			args: args{
 				headSlot: 31,
-				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
-				syncing:  false,
+				genesis: func() time.Time {
+					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(96)
+					require.NoError(t, err)
+					return time.Now().Add(-sg)
+				}(),
+				syncing: false,
 			},
 			want: true,
 		},
@@ -991,8 +995,12 @@ func TestShouldResync(t *testing.T) {
 			name: "two epochs behind, already syncing",
 			args: args{
 				headSlot: 31,
-				genesis:  prysmTime.Now().Add(-1 * 96 * time.Duration(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)) * time.Second),
-				syncing:  true,
+				genesis: func() time.Time {
+					sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(96)
+					require.NoError(t, err)
+					return time.Now().Add(-sg)
+				}(),
+				syncing: true,
 			},
 			want: false,
 		},

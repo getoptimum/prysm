@@ -2725,9 +2725,11 @@ func TestProcessLightClientUpdate(t *testing.T) {
 		t.Run(version.String(testVersion), func(t *testing.T) {
 			l := util.NewTestLightClient(t, testVersion)
 
-			s.genesisTime = time.Unix(time.Now().Unix()-(int64(params.BeaconConfig().VersionToForkEpochMap()[testVersion])*int64(params.BeaconConfig().SlotsPerEpoch)*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))), 0)
+			sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slots.UnsafeEpochStart(params.BeaconConfig().VersionToForkEpochMap()[testVersion]))
+			require.NoError(t, err)
+			s.SetGenesisTime(time.Now().Add(-sg))
 
-			err := s.cfg.BeaconDB.SaveBlock(ctx, l.AttestedBlock)
+			err = s.cfg.BeaconDB.SaveBlock(ctx, l.AttestedBlock)
 			require.NoError(t, err)
 			attestedBlockRoot, err := l.AttestedBlock.Block().HashTreeRoot()
 			require.NoError(t, err)

@@ -22,7 +22,13 @@ type SlotTimeScheduleEntry struct {
 // IsValid ensures that there is at least one entry with epoch 0 and that all entries have an epoch
 // with a value less than MaxSafeEpoch. It also ensures that every duration is at least 1 second.
 func (s SlotTimeSchedule) IsValid() error {
-	return errors.New("not implemented")
+	if len(s) < 1 {
+		return errors.New("empty schedule")
+	}
+	if s[0].Epoch != 0 {
+		return errors.New("first entry must start with epoch 0")
+	}
+	return nil
 }
 
 func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
@@ -37,23 +43,22 @@ func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
 
 	remaining := now.Sub(genesis)
 	for i, e := range s {
-		// TODO: iterate through the slot times to find the solution.
-
 		// Is this the last bucket? If so, return the result.
 		if i == len(s)-1 {
-			return epochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
+			return unsafeEpochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
 		}
 		// Does remaining fit in the current bucket?
 		// fits = s[i+1].Epoch.Sub(uint64(e.Epoch)) * BeaconChain().SlotsPerEpoch * e.SlotDuration < remaining
 		wholeEntryDuration := time.Duration(s[i+1].Epoch.Sub(uint64(e.Epoch))) * time.Duration(BeaconConfig().SlotsPerEpoch) * e.SlotDuration
 		// Yes -> return StartSlot(e.Epoch) + remaining / e.SlotDuration.
 		if remaining < wholeEntryDuration {
-			return epochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
+			return unsafeEpochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
 		}
 		// No -> remove the full bucket period from remaining.
 		remaining -= wholeEntryDuration
 	}
 
+	// TODO(preston): This could happen if the schedule is empty. Need to check this out...
 	return 0 // This should never happen. Maybe even panic? It's ensured safe by IsValid().
 }
 
@@ -69,17 +74,24 @@ func (s SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, err
 
 	var tm time.Duration
 	for i, e := range s {
-		if i == len(s)-1 || epochStart(s[i+1].Epoch) > slot {
-			delta, err := slot.SafeSub(uint64(epochStart(e.Epoch)))
+		if i == len(s)-1 || unsafeEpochStart(s[i+1].Epoch) > slot {
+			delta, err := slot.SafeSub(uint64(unsafeEpochStart(e.Epoch)))
 			if err != nil {
 				return 0, fmt.Errorf("failed to compute the number of slots into the epoch: %w", err)
 			}
-			return tm + (time.Duration(delta) * e.SlotDuration), nil
+			// Using SafeMul since the slot delta could overflow the result when converted to a duration.
+			dt, err := delta.SafeMul(uint64(e.SlotDuration))
+			if err != nil {
+				return 0, fmt.Errorf("failed to compute the number of slots into the epoch: %w", err)
+			}
+
+			return tm + time.Duration(dt), nil
 		}
 		delta, err := s[i+1].Epoch.SafeSub(uint64(e.Epoch))
 		if err != nil {
 			return 0, fmt.Errorf("failed to compute the number of slots in a SlotTimeSchedule entry: %w", err)
 		}
+
 		tm += (time.Duration(primitives.Slot(delta)*BeaconConfig().SlotsPerEpoch) * e.SlotDuration)
 	}
 
@@ -87,12 +99,30 @@ func (s SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, err
 }
 
 // This is a copy from slots.EpochStart, but avoids the circular dependency.
-func epochStart(e primitives.Epoch) primitives.Slot {
-	return primitives.Slot(e) * BeaconConfig().SlotsPerEpoch
+func epochStart(e primitives.Epoch) (primitives.Slot, error) {
+	slot, err := BeaconConfig().SlotsPerEpoch.SafeMul(uint64(e))
+	if err != nil {
+		return slot, fmt.Errorf("start slot calculation overflows: %w", err)
+	}
+	return slot, nil
+}
+
+// This is a copy from slots.UnsafeEpochStart, but avoids the circular dependency.
+func unsafeEpochStart(epoch primitives.Epoch) primitives.Slot {
+	es, err := epochStart(epoch)
+	if err != nil {
+		panic(err) // lint:nopanic -- Unsafe is implied and communicated in the godoc commentary.
+	}
+	return es
 }
 
 func (s SlotTimeSchedule) sort() {
-	// TODO: How to ensure the list is sorted at least once and remains sorted?
+	// TODO(preston): How to ensure the list is sorted at least once and remains sorted?
+
+	// TODO(preston): For now, run the validity check and panic to find test issues.
+	if err := s.IsValid(); err != nil {
+		panic(err) // lint:nopanic -- TODO(preston) - Remove
+	}
 }
 
 // SlotDuration returns the amount of time in a given slot. For example, 12 seconds per slot for
@@ -100,10 +130,16 @@ func (s SlotTimeSchedule) sort() {
 func (s SlotTimeSchedule) SlotDuration(slot primitives.Slot) time.Duration {
 	s.sort()
 
+	// Shortcut until a full schedule is defined.
+	if len(s) == 1 {
+		return s[0].SlotDuration
+	}
+
 	for i := len(s) - 1; i >= 0; i-- {
-		if BeaconConfig().SlotsPerEpoch.Mul(uint64(s[i].Epoch)) >= slot {
+		if BeaconConfig().SlotsPerEpoch.Mul(uint64(s[i].Epoch)) <= slot {
 			return s[i].SlotDuration
 		}
 	}
-	return 0 // Maybe this should be an error, but handling an error on this would be really annoying.
+
+	return 0 // TODO(preston): Maybe this should be an error, but handling an error on this would be really annoying.
 }

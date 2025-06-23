@@ -33,7 +33,7 @@ func TestService_validateCommitteeIndexBeaconAttestation(t *testing.T) {
 	db := dbtest.SetupDB(t)
 	chain := &mockChain.ChainService{
 		// 1 slot ago.
-		Genesis:          time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))) * time.Second),
+		Genesis:          time.Now().Add(-params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)),
 		ValidatorsRoot:   [32]byte{'A'},
 		ValidAttestation: true,
 		DB:               db,
@@ -325,7 +325,7 @@ func TestService_validateCommitteeIndexBeaconAttestationElectra(t *testing.T) {
 	db := dbtest.SetupDB(t)
 	chain := &mockChain.ChainService{
 		// 1 slot ago.
-		Genesis:          time.Now().Add(time.Duration(-1*int64(params.BeaconConfig().SlotTimeSchedule.SlotDuration(0))) * time.Second),
+		Genesis:          time.Now().Add(-params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)),
 		ValidatorsRoot:   [32]byte{'A'},
 		ValidAttestation: true,
 		DB:               db,
