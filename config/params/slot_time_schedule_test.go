@@ -9,6 +9,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
 	"github.com/OffchainLabs/prysm/v6/time/slots"
+	"gopkg.in/yaml.v3"
 )
 
 func TestSlotTimeSchedule_CurrentSlot(t *testing.T) {
@@ -279,4 +280,56 @@ func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
 			require.Equal(t, tt.duration, got)
 		})
 	}
+}
+
+func TestSlotTimeSchedule_UnmarshalsYAML(t *testing.T) {
+	const input = `SLOT_TIME_SCHEDULE:
+  - EPOCH: 0
+    SLOT_DURATION: 12000
+  - EPOCH: 1234567890
+    SLOT_DURATION: 6000
+  - EPOCH: 2345678900
+    SLOT_DURATION: 2500`
+
+	expected := params.SlotTimeSchedule{
+		{
+			Epoch:        0,
+			SlotDuration: 12 * time.Second,
+		}, {
+			Epoch:        1234567890,
+			SlotDuration: 6 * time.Second,
+		}, {
+			Epoch:        2345678900,
+			SlotDuration: 2*time.Second + 500*time.Millisecond,
+		},
+	}
+
+	c := &struct {
+		SlotTimeSchedule params.SlotTimeSchedule `yaml:"SLOT_TIME_SCHEDULE"`
+	}{}
+
+	require.NoError(t, yaml.Unmarshal([]byte(input), c))
+
+	require.Equal(t, len(expected), len(c.SlotTimeSchedule), "Did not get the expected number of slot time entries")
+	for i, e := range expected {
+		require.Equal(t, e.Epoch, c.SlotTimeSchedule[i].Epoch)
+		require.Equal(t, e.SlotDuration, c.SlotTimeSchedule[i].SlotDuration)
+	}
+}
+
+func TestSlotTimeSchedule_MarshalsYAML(t *testing.T) {
+	const want = `- EPOCH: 0
+  SLOT_DURATION: 12000
+- EPOCH: 12
+  SLOT_DURATION: 6000
+`
+
+	input := params.SlotTimeSchedule{
+		{Epoch: 0, SlotDuration: 12 * time.Second},
+		{Epoch: 12, SlotDuration: 6 * time.Second},
+	}
+
+	out, err := yaml.Marshal(input)
+	require.NoError(t, err)
+	require.Equal(t, want, string(out))
 }

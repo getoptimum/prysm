@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
+	"gopkg.in/yaml.v3"
 )
 
 var ErrInvalidSlotTimeScheduleNoGenesis = errors.New("invalid slot time schedule, missing an entry for epoch 0")
@@ -142,4 +143,48 @@ func (s SlotTimeSchedule) SlotDuration(slot primitives.Slot) time.Duration {
 	}
 
 	return 0 // TODO(preston): Maybe this should be an error, but handling an error on this would be really annoying.
+}
+
+var _ yaml.Unmarshaler = &SlotTimeSchedule{}
+var _ yaml.Marshaler = &SlotTimeSchedule{}
+
+type rawYamlEntry struct {
+	Epoch        uint64 `yaml:"EPOCH"`
+	SlotDuration int64  `yaml:"SLOT_DURATION"` // milliseconds as int64
+}
+
+// UnmarshalYAML satisifies the yaml.Unmarshaler interface. It is necessary to represent the
+// SlotDuration as a time.Duration value while the yaml file requires it to be represented as an
+// integer value with the unit of millieseconds.
+func (s *SlotTimeSchedule) UnmarshalYAML(n *yaml.Node) error {
+	var rawEntries []rawYamlEntry
+	if err := n.Decode(&rawEntries); err != nil {
+		return err
+	}
+
+	entries := make([]SlotTimeScheduleEntry, len(rawEntries))
+	for i, raw := range rawEntries {
+		entries[i] = SlotTimeScheduleEntry{
+			Epoch:        primitives.Epoch(raw.Epoch),
+			SlotDuration: time.Duration(raw.SlotDuration) * time.Millisecond,
+		}
+	}
+
+	*s = entries
+	return nil
+}
+
+// MarshalYAML satisifies the yaml.Marshaler interface. It is necessary to represent the
+// SlotDuration as a time.Duration value while the yaml file requires it to be represented as an
+// integer value with the unit of millieseconds.
+func (s SlotTimeSchedule) MarshalYAML() (interface{}, error) {
+	rawEntries := make([]rawYamlEntry, len(s))
+	for i, entry := range s {
+		rawEntries[i] = rawYamlEntry{
+			Epoch:        uint64(entry.Epoch),
+			SlotDuration: int64(entry.SlotDuration / time.Millisecond),
+		}
+	}
+
+	return rawEntries, nil
 }
