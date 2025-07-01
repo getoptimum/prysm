@@ -223,12 +223,19 @@ func RoundUpToNearestEpoch(slot primitives.Slot) primitives.Slot {
 
 // VotingPeriodStartTime returns the current voting period's start time
 // depending on the provided genesis and current slot.
-// DEPRECATED: Hardcoded to 12 seconds per slot at the moment.
-// TODO: Can this be deleted? Do we do eth1 voting anymore?
 func VotingPeriodStartTime(genesis uint64, slot primitives.Slot) uint64 {
 	slots := params.BeaconConfig().SlotsPerEpoch.Mul(uint64(params.BeaconConfig().EpochsPerEth1VotingPeriod))
-	startTime := uint64((slot - slot.ModSlot(slots)).Mul(12))
-	return genesis + startTime
+	periodStartSlot := slot - slot.ModSlot(slots)
+	
+	// Calculate the time elapsed from genesis to the period start slot
+	schedule := params.BeaconConfig().SlotTimeSchedule
+	timeElapsed, err := schedule.SinceGenesis(periodStartSlot)
+	if err != nil {
+		// Fallback to hardcoded calculation if SinceGenesis fails
+		return genesis + uint64(periodStartSlot.Mul(12))
+	}
+	
+	return genesis + uint64(timeElapsed.Seconds())
 }
 
 // PrevSlot returns previous slot, with an exception in slot 0 to prevent underflow.
@@ -277,10 +284,12 @@ func SinceSlotStart(s primitives.Slot, genesis time.Time, timestamp time.Time) (
 
 // WithinVotingWindow returns whether the current time is within the voting window
 // (eg. 4 seconds on mainnet) of the current slot.
-// TODO(preston): Update this.
 func WithinVotingWindow(genesis time.Time, slot primitives.Slot) bool {
-	votingWindow := 12 / params.BeaconConfig().IntervalsPerSlot
-	return time.Since(UnsafeStartTime(genesis, slot)) < time.Duration(votingWindow)*time.Second
+	// Get the current slot duration from the schedule
+	schedule := params.BeaconConfig().SlotTimeSchedule
+	slotDuration := schedule.SlotDuration(slot)
+	votingWindow := slotDuration / time.Duration(params.BeaconConfig().IntervalsPerSlot)
+	return time.Since(UnsafeStartTime(genesis, slot)) < votingWindow
 }
 
 // MaxSafeEpoch gives the largest epoch value that can be safely converted to a slot.
