@@ -70,7 +70,8 @@ func E2ETestConfig() *BeaconChainConfig {
 
 	e2eConfig.SlotTimeSchedule = SlotTimeSchedule{
 		{Epoch: 0, SlotDuration: time.Second * 10},
-		{Epoch: 4, SlotDuration: time.Second * 4}, // TODO: Test this!
+		{Epoch: ElectraE2EForkEpoch + 2, SlotDuration: time.Second * 6}, // After Electra fork completes
+		{Epoch: ElectraE2EForkEpoch + 4, SlotDuration: time.Second * 4}, // Test multiple transitions
 	}
 
 	e2eConfig.InitializeForkSchedule()
@@ -129,7 +130,8 @@ func E2EMainnetTestConfig() *BeaconChainConfig {
 
 	e2eConfig.SlotTimeSchedule = SlotTimeSchedule{
 		{Epoch: 0, SlotDuration: time.Second * 10},
-		{Epoch: 4, SlotDuration: time.Second * 4}, // TODO: Test this!
+		{Epoch: ElectraE2EForkEpoch + 2, SlotDuration: time.Second * 4}, // After Electra fork completes
+		{Epoch: ElectraE2EForkEpoch + 4, SlotDuration: time.Second * 2}, // Test multiple transitions
 	}
 
 	e2eConfig.InitializeForkSchedule()
