@@ -226,7 +226,7 @@ func RoundUpToNearestEpoch(slot primitives.Slot) primitives.Slot {
 func VotingPeriodStartTime(genesis uint64, slot primitives.Slot) uint64 {
 	slots := params.BeaconConfig().SlotsPerEpoch.Mul(uint64(params.BeaconConfig().EpochsPerEth1VotingPeriod))
 	periodStartSlot := slot - slot.ModSlot(slots)
-	
+
 	// Calculate the time elapsed from genesis to the period start slot
 	schedule := params.BeaconConfig().SlotTimeSchedule
 	timeElapsed, err := schedule.SinceGenesis(periodStartSlot)
@@ -234,7 +234,7 @@ func VotingPeriodStartTime(genesis uint64, slot primitives.Slot) uint64 {
 		// Fallback to hardcoded calculation if SinceGenesis fails
 		return genesis + uint64(periodStartSlot.Mul(12))
 	}
-	
+
 	return genesis + uint64(timeElapsed.Seconds())
 }
 

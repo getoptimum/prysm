@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/math"
@@ -186,7 +187,6 @@ func ConfigToYaml(cfg *BeaconChainConfig) []byte {
 		fmt.Sprintf("MIN_GENESIS_TIME: %d", cfg.MinGenesisTime),
 		fmt.Sprintf("GENESIS_FORK_VERSION: %#x", cfg.GenesisForkVersion),
 		fmt.Sprintf("CHURN_LIMIT_QUOTIENT: %d", cfg.ChurnLimitQuotient),
-		fmt.Sprintf("SECONDS_PER_SLOT: %d", uint64(cfg.SlotTimeSchedule.SlotDuration(0).Seconds())), // TODO: Delete
 		fmt.Sprintf("SLOTS_PER_EPOCH: %d", cfg.SlotsPerEpoch),
 		fmt.Sprintf("SECONDS_PER_ETH1_BLOCK: %d", cfg.SecondsPerETH1Block),
 		fmt.Sprintf("ETH1_FOLLOW_DISTANCE: %d", cfg.Eth1FollowDistance),
@@ -251,6 +251,16 @@ func ConfigToYaml(cfg *BeaconChainConfig) []byte {
 			lines = append(lines,
 				"  - EPOCH: "+strconv.FormatUint(uint64(entry.Epoch), 10),
 				"    MAX_BLOBS_PER_BLOCK: "+strconv.FormatUint(entry.MaxBlobsPerBlock, 10),
+			)
+		}
+	}
+
+	if len(cfg.SlotTimeSchedule) > 0 {
+		lines = append(lines, "SLOT_TIME_SCHEDULE:")
+		for _, entry := range cfg.SlotTimeSchedule {
+			lines = append(lines,
+				"  - EPOCH: "+strconv.FormatUint(uint64(entry.Epoch), 10),
+				"    SLOT_DURATION: "+strconv.FormatInt(int64(entry.SlotDuration/time.Millisecond), 10),
 			)
 		}
 	}

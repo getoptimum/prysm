@@ -344,7 +344,10 @@ func TestConfigParityYaml(t *testing.T) {
 	assert.NoError(t, file.WriteFile(yamlDir, yamlObj))
 
 	require.NoError(t, params.LoadChainConfigFile(yamlDir, params.E2ETestConfig().Copy()))
-	assert.DeepEqual(t, params.BeaconConfig(), testCfg)
+
+	compareConfigs(t, params.BeaconConfig(), testCfg)
+	// TODO(preston): This panics, so we need another way to ensure this is ok.
+	//assert.DeepEqual(t, params.BeaconConfig(), testCfg)
 }
 
 // configFilePath sets the proper config and returns the relevant
