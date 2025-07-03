@@ -17,14 +17,14 @@ func TestSlotTimeSchedule_CurrentSlot(t *testing.T) {
 	tests := []struct {
 		name string
 		// Inputs
-		sch     params.SlotTimeSchedule
+		sch     *params.SlotTimeSchedule
 		genesis time.Time
 		// Want
 		slot primitives.Slot
 	}{
 		{
 			name: "single entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -35,7 +35,7 @@ func TestSlotTimeSchedule_CurrentSlot(t *testing.T) {
 		},
 		{
 			name: "multiple entries",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -60,7 +60,7 @@ func TestSlotTimeSchedule_CurrentSlot(t *testing.T) {
 		},
 		{
 			name: "multiple entries, last entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -99,7 +99,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 	tests := []struct {
 		name string
 		// Inputs
-		sch  params.SlotTimeSchedule
+		sch  *params.SlotTimeSchedule
 		slot primitives.Slot
 		// Want
 		since time.Duration
@@ -107,7 +107,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 	}{
 		{
 			name: "single entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -118,7 +118,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 		},
 		{
 			name: "single entry 1s",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: time.Second,
@@ -129,7 +129,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 		},
 		{
 			name: "multiple entries",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -150,7 +150,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 		},
 		{
 			name: "multiple entries, last entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -172,7 +172,7 @@ func TestSlotTimeSchedule_SinceGenesis(t *testing.T) {
 		},
 		{
 			name: "overflow",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -204,14 +204,14 @@ func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
 	tests := []struct {
 		name string
 		// Inputs
-		sch  params.SlotTimeSchedule
+		sch  *params.SlotTimeSchedule
 		slot primitives.Slot
 		// Want
 		duration time.Duration
 	}{
 		{
 			name: "single entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -222,7 +222,7 @@ func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
 		},
 		{
 			name: "multiple entries",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -239,7 +239,7 @@ func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
 		},
 		{
 			name: "multiple entries, last entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -256,7 +256,7 @@ func TestSlotTimeSchedule_SlotDuration(t *testing.T) {
 		},
 		{
 			name: "multiple entries, first entry",
-			sch: params.SlotTimeSchedule{
+			sch: &params.SlotTimeSchedule{
 				{
 					Epoch:        0,
 					SlotDuration: 12 * time.Second,
@@ -291,7 +291,7 @@ func TestSlotTimeSchedule_UnmarshalsYAML(t *testing.T) {
   - EPOCH: 2345678900
     SLOT_DURATION: 2500`
 
-	expected := params.SlotTimeSchedule{
+	expected := &params.SlotTimeSchedule{
 		{
 			Epoch:        0,
 			SlotDuration: 12 * time.Second,
@@ -305,15 +305,15 @@ func TestSlotTimeSchedule_UnmarshalsYAML(t *testing.T) {
 	}
 
 	c := &struct {
-		SlotTimeSchedule params.SlotTimeSchedule `yaml:"SLOT_TIME_SCHEDULE"`
+		SlotTimeSchedule *params.SlotTimeSchedule `yaml:"SLOT_TIME_SCHEDULE"`
 	}{}
 
 	require.NoError(t, yaml.Unmarshal([]byte(input), c))
 
-	require.Equal(t, len(expected), len(c.SlotTimeSchedule), "Did not get the expected number of slot time entries")
-	for i, e := range expected {
-		require.Equal(t, e.Epoch, c.SlotTimeSchedule[i].Epoch)
-		require.Equal(t, e.SlotDuration, c.SlotTimeSchedule[i].SlotDuration)
+	require.Equal(t, len(*expected), len(*c.SlotTimeSchedule), "Did not get the expected number of slot time entries")
+	for i, e := range *expected {
+		require.Equal(t, e.Epoch, (*c.SlotTimeSchedule)[i].Epoch)
+		require.Equal(t, e.SlotDuration, (*c.SlotTimeSchedule)[i].SlotDuration)
 	}
 }
 
@@ -324,7 +324,7 @@ func TestSlotTimeSchedule_MarshalsYAML(t *testing.T) {
   SLOT_DURATION: 6000
 `
 
-	input := params.SlotTimeSchedule{
+	input := &params.SlotTimeSchedule{
 		{Epoch: 0, SlotDuration: 12 * time.Second},
 		{Epoch: 12, SlotDuration: 6 * time.Second},
 	}
@@ -332,4 +332,69 @@ func TestSlotTimeSchedule_MarshalsYAML(t *testing.T) {
 	out, err := yaml.Marshal(input)
 	require.NoError(t, err)
 	require.Equal(t, want, string(out))
+}
+
+func TestSlotTimeSchedule_Length(t *testing.T) {
+	tests := []struct {
+		schedule *params.SlotTimeSchedule
+		want     int
+	}{
+		{
+			schedule: nil,
+			want:     0,
+		},
+		{
+			schedule: &params.SlotTimeSchedule{{}},
+			want:     1,
+		},
+		{
+			schedule: &params.SlotTimeSchedule{{}, {}},
+			want:     2,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("test %d", i), func(t *testing.T) {
+			require.Equal(t, tt.want, tt.schedule.Length())
+		})
+	}
+}
+
+func TestSlotTimeSchedule_SlotAt(t *testing.T) {
+	// Test SlotAt with variable slot durations
+	schedule := &params.SlotTimeSchedule{
+		{Epoch: 0, SlotDuration: 10 * time.Second}, // Epochs 0-15: 10s slots
+		{Epoch: 16, SlotDuration: 4 * time.Second}, // Epochs 16+: 4s slots
+	}
+
+	genesis := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		tm   time.Time
+		want primitives.Slot
+	}{
+		{
+			name: "slot 0",
+			tm:   genesis,
+			want: 0,
+		},
+		{
+			name: "slot 95 (last slot of epoch 15)",
+			tm:   genesis.Add(95 * 10 * time.Second),
+			want: 95,
+		},
+		{
+			name: "slot 96 (first slot of epoch 16, 4s duration)",
+			tm:   genesis.Add(96 * 10 * time.Second), // 16 epochs * 6 slots * 10s = 960s
+			want: 96,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := schedule.SlotAt(genesis, tt.tm)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

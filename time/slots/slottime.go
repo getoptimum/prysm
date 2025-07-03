@@ -166,7 +166,7 @@ func VerifyTime(genesis time.Time, slot primitives.Slot, timeTolerance time.Dura
 	diff := slotTime.Sub(currentTime)
 
 	if diff > timeTolerance {
-		return fmt.Errorf("could not process slot from the future, slot time %s > current time %s", slotTime, currentTime)
+		return fmt.Errorf("could not process slot from the future, slot time %s > current time %s (diff %s)", slotTime, currentTime, diff)
 	}
 	return nil
 }
@@ -189,14 +189,7 @@ func CurrentSlot(genesis time.Time) primitives.Slot {
 
 // At returns the slot at the given time.
 func At(genesis, tm time.Time) primitives.Slot {
-	if tm.Before(genesis) {
-		return 0
-	}
-	//return primitives.Slot(tm.Sub(genesis) / time.Second / time.Duration(params.BeaconConfig().SecondsPerSlot))
-	//}
-
-	// TODO(preston): This is incorrect.
-	return params.BeaconConfig().SlotTimeSchedule.CurrentSlot(genesis)
+	return params.BeaconConfig().SlotTimeSchedule.SlotAt(genesis, tm)
 }
 
 // ValidateClock validates a provided slot against the local

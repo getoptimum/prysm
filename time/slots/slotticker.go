@@ -39,7 +39,7 @@ type IntervalTicker interface {
 type SlotTicker struct {
 	c        chan primitives.Slot
 	done     chan struct{}
-	schedule params.SlotTimeSchedule
+	schedule *params.SlotTimeSchedule
 }
 
 // SlotIntervalTicker is similar to a slot ticker but it returns also
@@ -78,7 +78,7 @@ func (s *SlotIntervalTicker) Done() {
 // NewSlotTicker starts and returns a new SlotTicker instance.
 // This method panics if genesis time is zero.
 // lint:nopanic -- Communicated panic in godoc commentary.
-func NewSlotTicker(genesisTime time.Time, schedule params.SlotTimeSchedule) *SlotTicker {
+func NewSlotTicker(genesisTime time.Time, schedule *params.SlotTimeSchedule) *SlotTicker {
 	if genesisTime.IsZero() {
 		panic("zero genesis time")
 	}
@@ -95,7 +95,7 @@ func NewSlotTicker(genesisTime time.Time, schedule params.SlotTimeSchedule) *Slo
 // entering a offset greater than secondsPerSlot is not allowed.
 // This method will panic if genesis time is zero or the offset is less than seconds per slot.
 // lint:nopanic -- Communicated panic in godoc commentary.
-func NewSlotTickerWithOffset(genesisTime time.Time, offset time.Duration, schedule params.SlotTimeSchedule) *SlotTicker {
+func NewSlotTickerWithOffset(genesisTime time.Time, offset time.Duration, schedule *params.SlotTimeSchedule) *SlotTicker {
 	if genesisTime.Unix() == 0 {
 		panic("zero genesis time")
 	}
@@ -129,7 +129,7 @@ func (s *SlotTicker) start(
 			d := s.schedule.SlotDuration(s.schedule.CurrentSlot(genesisTime))
 			nextTick := sinceGenesis.Truncate(d) + d
 			nextTickTime = genesisTime.Add(nextTick)
-			slot = primitives.Slot(nextTick / d)
+			slot = s.schedule.SlotAt(genesisTime, nextTickTime)
 		}
 
 		for {

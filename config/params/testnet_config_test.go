@@ -156,5 +156,5 @@ func compareConfigs(t *testing.T, expected, actual *params.BeaconChainConfig) {
 	require.DeepEqual(t, expected.TerminalBlockHashActivationEpoch, actual.TerminalBlockHashActivationEpoch)
 	require.DeepEqual(t, expected.TerminalTotalDifficulty, actual.TerminalTotalDifficulty)
 	require.DeepEqual(t, expected.DefaultFeeRecipient, actual.DefaultFeeRecipient)
-	require.DeepEqualSlice(t, expected.SlotTimeSchedule, actual.SlotTimeSchedule)
+	require.DeepEqualSlice(t, *expected.SlotTimeSchedule, *actual.SlotTimeSchedule)
 }

@@ -373,7 +373,7 @@ func TestRunnerPushesProposerSettings_ValidContext(t *testing.T) {
 	logrus.SetOutput(tlogger{t})
 
 	cfg := params.BeaconConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.SetActiveTestCleanup(t, cfg)
 
 	timedCtx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)

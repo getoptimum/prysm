@@ -12,7 +12,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/math"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func isMinimal(lines []string) bool {
@@ -54,7 +54,7 @@ func UnmarshalConfig(yamlFile []byte, conf *BeaconChainConfig) (*BeaconChainConf
 		}
 	}
 	yamlFile = []byte(strings.Join(lines, "\n"))
-	if err := yaml.UnmarshalStrict(yamlFile, conf); err != nil {
+	if err := yaml.Unmarshal(yamlFile, conf); err != nil {
 		var typeError *yaml.TypeError
 		if !errors.As(err, &typeError) {
 			return nil, errors.Wrap(err, "Failed to parse chain config yaml file.")
@@ -255,9 +255,9 @@ func ConfigToYaml(cfg *BeaconChainConfig) []byte {
 		}
 	}
 
-	if len(cfg.SlotTimeSchedule) > 0 {
+	if cfg.SlotTimeSchedule != nil && cfg.SlotTimeSchedule.Length() > 0 {
 		lines = append(lines, "SLOT_TIME_SCHEDULE:")
-		for _, entry := range cfg.SlotTimeSchedule {
+		for _, entry := range *cfg.SlotTimeSchedule {
 			lines = append(lines,
 				"  - EPOCH: "+strconv.FormatUint(uint64(entry.Epoch), 10),
 				"    SLOT_DURATION: "+strconv.FormatInt(int64(entry.SlotDuration/time.Millisecond), 10),

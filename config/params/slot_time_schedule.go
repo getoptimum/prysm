@@ -22,35 +22,39 @@ type SlotTimeScheduleEntry struct {
 
 // IsValid ensures that there is at least one entry with epoch 0 and that all entries have an epoch
 // with a value less than MaxSafeEpoch. It also ensures that every duration is at least 1 second.
-func (s SlotTimeSchedule) IsValid() error {
-	if len(s) < 1 {
+func (s *SlotTimeSchedule) IsValid() error {
+	if s == nil || s.Length() < 1 {
 		return errors.New("empty schedule")
 	}
-	if s[0].Epoch != 0 {
+	if (*s)[0].Epoch != 0 {
 		return errors.New("first entry must start with epoch 0")
 	}
 	return nil
 }
 
-func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
+func (s *SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
+	return s.SlotAt(genesis, time.Now())
+}
+
+// SlotAt calculates the slot number at a given time using the SlotTimeSchedule.
+// This is the correct implementation that accounts for variable slot durations.
+func (s *SlotTimeSchedule) SlotAt(genesis, tm time.Time) primitives.Slot {
+	if s == nil {
+		return 0
+	}
+	if tm.Before(genesis) {
+		return 0
+	}
 	s.sort()
 
-	now := time.Now()
-	// This is the non-optimized routine. It could be better by precomputing the start time of each epoch entry.
-	d := s[0].SlotDuration
-	if len(s) == 1 {
-		return primitives.Slot(now.Sub(genesis) / d)
-	}
-
-	remaining := now.Sub(genesis)
-	for i, e := range s {
+	remaining := tm.Sub(genesis)
+	for i, e := range *s {
 		// Is this the last bucket? If so, return the result.
-		if i == len(s)-1 {
+		if i == s.Length()-1 {
 			return unsafeEpochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
 		}
 		// Does remaining fit in the current bucket?
-		// fits = s[i+1].Epoch.Sub(uint64(e.Epoch)) * BeaconChain().SlotsPerEpoch * e.SlotDuration < remaining
-		wholeEntryDuration := time.Duration(s[i+1].Epoch.Sub(uint64(e.Epoch))) * time.Duration(BeaconConfig().SlotsPerEpoch) * e.SlotDuration
+		wholeEntryDuration := time.Duration((*s)[i+1].Epoch.Sub(uint64(e.Epoch))) * time.Duration(BeaconConfig().SlotsPerEpoch) * e.SlotDuration
 		// Yes -> return StartSlot(e.Epoch) + remaining / e.SlotDuration.
 		if remaining < wholeEntryDuration {
 			return unsafeEpochStart(e.Epoch) + primitives.Slot(remaining/e.SlotDuration)
@@ -59,23 +63,25 @@ func (s SlotTimeSchedule) CurrentSlot(genesis time.Time) primitives.Slot {
 		remaining -= wholeEntryDuration
 	}
 
-	// TODO(preston): This could happen if the schedule is empty. Need to check this out...
-	return 0 // This should never happen. Maybe even panic? It's ensured safe by IsValid().
+	return 0 // This should never happen.
 }
 
 // CurrentSlotDuration returns the slot duration given the current slot on the schedule.
-func (s SlotTimeSchedule) CurrentSlotDuration(genesis time.Time) time.Duration {
+func (s *SlotTimeSchedule) CurrentSlotDuration(genesis time.Time) time.Duration {
 	return s.SlotDuration(s.CurrentSlot(genesis))
 }
 
 // SinceGenesis will return the amount of time since genesis for a given slot. May return an error
 // when the slot value would cause an overflow or underflow.
-func (s SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, error) {
+func (s *SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, error) {
+	if s == nil {
+		return 0, errors.New("nil SlotTimeSchedule")
+	}
 	s.sort()
 
 	var tm time.Duration
-	for i, e := range s {
-		if i == len(s)-1 || unsafeEpochStart(s[i+1].Epoch) > slot {
+	for i, e := range *s {
+		if i == s.Length()-1 || unsafeEpochStart((*s)[i+1].Epoch) > slot {
 			delta, err := slot.SafeSub(uint64(unsafeEpochStart(e.Epoch)))
 			if err != nil {
 				return 0, fmt.Errorf("failed to compute the number of slots into the epoch: %w", err)
@@ -88,7 +94,7 @@ func (s SlotTimeSchedule) SinceGenesis(slot primitives.Slot) (time.Duration, err
 
 			return tm + time.Duration(dt), nil
 		}
-		delta, err := s[i+1].Epoch.SafeSub(uint64(e.Epoch))
+		delta, err := (*s)[i+1].Epoch.SafeSub(uint64(e.Epoch))
 		if err != nil {
 			return 0, fmt.Errorf("failed to compute the number of slots in a SlotTimeSchedule entry: %w", err)
 		}
@@ -117,7 +123,7 @@ func unsafeEpochStart(epoch primitives.Epoch) primitives.Slot {
 	return es
 }
 
-func (s SlotTimeSchedule) sort() {
+func (s *SlotTimeSchedule) sort() {
 	// TODO(preston): How to ensure the list is sorted at least once and remains sorted?
 
 	// TODO(preston): For now, run the validity check and panic to find test issues.
@@ -128,21 +134,32 @@ func (s SlotTimeSchedule) sort() {
 
 // SlotDuration returns the amount of time in a given slot. For example, 12 seconds per slot for
 // Ethereum's original slot duration.
-func (s SlotTimeSchedule) SlotDuration(slot primitives.Slot) time.Duration {
+func (s *SlotTimeSchedule) SlotDuration(slot primitives.Slot) time.Duration {
+	if s == nil {
+		return 0
+	}
 	s.sort()
 
 	// Shortcut until a full schedule is defined.
-	if len(s) == 1 {
-		return s[0].SlotDuration
+	if s.Length() == 1 {
+		return (*s)[0].SlotDuration
 	}
 
-	for i := len(s) - 1; i >= 0; i-- {
-		if BeaconConfig().SlotsPerEpoch.Mul(uint64(s[i].Epoch)) <= slot {
-			return s[i].SlotDuration
+	for i := s.Length() - 1; i >= 0; i-- {
+		if BeaconConfig().SlotsPerEpoch.Mul(uint64((*s)[i].Epoch)) <= slot {
+			return (*s)[i].SlotDuration
 		}
 	}
 
 	return 0 // TODO(preston): Maybe this should be an error, but handling an error on this would be really annoying.
+}
+
+// Length returns the number of entries in the SlotTimeSchedule.
+func (s *SlotTimeSchedule) Length() int {
+	if s == nil {
+		return 0
+	}
+	return len(*s)
 }
 
 var _ yaml.Unmarshaler = &SlotTimeSchedule{}
@@ -177,9 +194,12 @@ func (s *SlotTimeSchedule) UnmarshalYAML(n *yaml.Node) error {
 // MarshalYAML satisifies the yaml.Marshaler interface. It is necessary to represent the
 // SlotDuration as a time.Duration value while the yaml file requires it to be represented as an
 // integer value with the unit of millieseconds.
-func (s SlotTimeSchedule) MarshalYAML() (interface{}, error) {
-	rawEntries := make([]rawYamlEntry, len(s))
-	for i, entry := range s {
+func (s *SlotTimeSchedule) MarshalYAML() (interface{}, error) {
+	if s == nil {
+		return nil, nil
+	}
+	rawEntries := make([]rawYamlEntry, s.Length())
+	for i, entry := range *s {
 		rawEntries[i] = rawYamlEntry{
 			Epoch:        uint64(entry.Epoch),
 			SlotDuration: int64(entry.SlotDuration / time.Millisecond),

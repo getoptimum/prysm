@@ -44,7 +44,7 @@ type ServiceConfig struct {
 
 // Parameters for a slasher simulator.
 type Parameters struct {
-	SlotTimeSchedule       params.SlotTimeSchedule
+	SlotTimeSchedule       *params.SlotTimeSchedule
 	SlotsPerEpoch          primitives.Slot
 	AggregationPercent     float64
 	ProposerSlashingProbab float64

@@ -126,7 +126,7 @@ func TestSubscribe_UnsubscribeTopic(t *testing.T) {
 func TestSubscribe_ReceivesAttesterSlashing(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	p2pService := p2ptest.NewTestP2P(t)
@@ -431,7 +431,7 @@ func Test_wrapAndReportValidation(t *testing.T) {
 func TestFilterSubnetPeers(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	gFlags := new(flags.GlobalFlags)
@@ -511,7 +511,7 @@ func TestFilterSubnetPeers(t *testing.T) {
 func TestSubscribeWithSyncSubnets_DynamicOK(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	cfg := params.MainnetConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	params.OverrideBeaconConfig(cfg)
 
 	p := p2ptest.NewTestP2P(t)
@@ -562,7 +562,7 @@ func TestSubscribeWithSyncSubnets_DynamicSwitchFork(t *testing.T) {
 	p := p2ptest.NewTestP2P(t)
 	cfg := params.BeaconConfig().Copy()
 	cfg.AltairForkEpoch = 1
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}
 	cfg.SlotsPerEpoch = 4
 	params.OverrideBeaconConfig(cfg)
 	params.BeaconConfig().InitializeForkSchedule()

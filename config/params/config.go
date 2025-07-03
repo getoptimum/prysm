@@ -299,7 +299,7 @@ type BeaconChainConfig struct {
 	BlobSchedule []BlobScheduleEntry `yaml:"BLOB_SCHEDULE"`
 
 	// Seconds per slot schedule
-	SlotTimeSchedule SlotTimeSchedule `yaml:"SLOT_TIME_SCHEDULE"`
+	SlotTimeSchedule *SlotTimeSchedule `yaml:"SLOT_TIME_SCHEDULE"`
 
 	// Deprecated_MaxBlobsPerBlock defines the max blobs that could exist in a block.
 	// Deprecated: This field is no longer supported. Avoid using it.

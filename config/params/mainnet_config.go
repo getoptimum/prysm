@@ -342,7 +342,7 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 
 	BlobSchedule: []BlobScheduleEntry{},
 
-	SlotTimeSchedule: SlotTimeSchedule{
+	SlotTimeSchedule: &SlotTimeSchedule{
 		{Epoch: 0, SlotDuration: time.Second * 12},
 	},
 }

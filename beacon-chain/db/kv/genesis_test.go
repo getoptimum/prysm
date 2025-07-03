@@ -146,7 +146,7 @@ func TestEnsureEmbeddedGenesis(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
 	// Embedded Genesis works with Mainnet config
 	cfg := params.MainnetConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{
 		Epoch:        0,
 		SlotDuration: 1 * time.Second,
 	}}
