@@ -1,0 +1,35 @@
+participants:
+  - el_type: geth
+    cl_type: prysm
+    cl_image: gcr.io/offchainlabs/prysm/beacon-chain:dynamic_slots
+    vc_image: gcr.io/offchainlabs/prysm/validator:dynamic_slots
+    count: 3
+additional_services:
+  - prometheus
+  - grafana
+network_params:
+  slot_time_schedule:
+    - EPOCH: 0
+      SLOT_DURATION: 12000  # 12 seconds in milliseconds
+    - EPOCH: 10
+      SLOT_DURATION: 11000  # 11 seconds  
+    - EPOCH: 20
+      SLOT_DURATION: 10000  # 10 seconds
+    - EPOCH: 30
+      SLOT_DURATION: 9000 
+    - EPOCH: 40
+      SLOT_DURATION: 8000
+    - EPOCH: 50
+      SLOT_DURATION: 7000
+    - EPOCH: 60
+      SLOT_DURATION: 6000
+    - EPOCH: 70
+      SLOT_DURATION: 5000
+    - EPOCH: 80
+      SLOT_DURATION: 4000
+    - EPOCH: 90
+      SLOT_DURATION: 3000
+    - EPOCH: 100
+      SLOT_DURATION: 2000
+    - EPOCH: 110
+      SLOT_DURATION: 1000
