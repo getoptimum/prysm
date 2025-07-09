@@ -603,7 +603,7 @@ func TestSignAttestation(t *testing.T) {
 
 func TestServer_WaitToSlotOneThird_CanWait(t *testing.T) {
 	cfg := params.BeaconConfig()
-	cfg.SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: 12 * time.Second}}
+	cfg.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: 12 * time.Second}}
 	params.SetActiveTestCleanup(t, cfg)
 
 	currentTime := time.Now()

@@ -210,7 +210,7 @@ func TestHealthMonitor_HealthyChan_ReceivesUpdates(t *testing.T) {
 	monitorCtx, monitorCancelFunc := context.WithCancel(context.Background())
 
 	originalSchedule := params.BeaconConfig().SlotTimeSchedule
-	params.BeaconConfig().SlotTimeSchedule = params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}} // 1 sec interval for test
+	params.BeaconConfig().SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}} // 1 sec interval for test
 	defer func() {
 		params.BeaconConfig().SlotTimeSchedule = originalSchedule
 		monitorCancelFunc() // Ensure monitor context is cleaned up
