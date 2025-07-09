@@ -1,6 +1,7 @@
 package params_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"

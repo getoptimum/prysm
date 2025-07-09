@@ -316,6 +316,10 @@ type BeaconChainConfig struct {
 	// DeprecatedMaxBlobsPerBlockFulu defines the max blobs that could exist in a block post Fulu hard fork.
 	// Deprecated: This field is no longer supported. Avoid using it.
 	DeprecatedMaxBlobsPerBlockFulu int `yaml:"MAX_BLOBS_PER_BLOCK_FULU" spec:"true"`
+
+	// DeprecatedSecondsPerSlot is not used, except for marshalling to yaml.
+	// Deprecated: Use SlotTimeSchedule.
+	DeprecatedSecondsPerSlot uint64 `yaml:"SECONDS_PER_SLOT" spec:"true"` // SecondsPerSlot is the duration of a slot in seconds (derived from SlotTimeSchedule).
 }
 
 func (b *BeaconChainConfig) VersionToForkEpochMap() map[int]primitives.Epoch {

@@ -96,6 +96,18 @@ func prepareConfigSpec() (map[string]string, error) {
 
 		tagValue := strings.ToUpper(tField.Tag.Get("yaml"))
 		vField := v.Field(i)
+
+    // Backwards compatability: Special handling for SECONDS_PER_SLOT.
+		if tagValue == "SECONDS_PER_SLOT" {
+			if config.SlotTimeSchedule != nil && config.SlotTimeSchedule.Length() > 0 {
+				duration := config.SlotTimeSchedule.SlotDuration(0)
+				data[tagValue] = strconv.FormatUint(uint64(duration.Seconds()), 10)
+			} else {
+				data[tagValue] = "0"
+			}
+			continue
+		}
+
 		switch vField.Kind() {
 		case reflect.Int:
 			data[tagValue] = strconv.FormatInt(vField.Int(), 10)

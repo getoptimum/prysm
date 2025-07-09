@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/OffchainLabs/prysm/v6/api/server/structs"
 	"github.com/OffchainLabs/prysm/v6/config/params"
@@ -40,7 +41,6 @@ func TestGetDepositContract(t *testing.T) {
 }
 
 func TestGetSpec(t *testing.T) {
-	t.Skip("TODO(preston): This is failing since I deleted SECONDS_PER_SLOT")
 	params.SetupTestConfigCleanup(t)
 	config := params.BeaconConfig().Copy()
 
@@ -85,7 +85,7 @@ func TestGetSpec(t *testing.T) {
 	config.BLSWithdrawalPrefixByte = byte('b')
 	config.ETH1AddressWithdrawalPrefixByte = byte('c')
 	config.GenesisDelay = 24
-	// config.SecondsPerSlot = 25 // TODO(preston): Remove
+	config.SlotTimeSchedule = &params.SlotTimeSchedule{{Epoch: 0, SlotDuration: 25 * time.Second}}
 	config.MinAttestationInclusionDelay = 26
 	config.SlotsPerEpoch = 27
 	config.MinSeedLookahead = 28
