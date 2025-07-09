@@ -638,3 +638,86 @@ func TestForkSchedule_Ok(t *testing.T) {
 		assert.Equal(t, os.Len(), len(resp.Data))
 	})
 }
+
+// TestGetSpec_SecondsPerSlot is a regression test to ensure that SECONDS_PER_SLOT
+// is correctly computed from SlotTimeSchedule and returned by the /eth/v1/config/spec API endpoint.
+func TestGetSpec_SecondsPerSlot(t *testing.T) {
+	testCases := []struct {
+		name                string
+		slotTimeSchedule    *params.SlotTimeSchedule
+		expectedSecondsSlot string
+		description         string
+	}{
+		{
+			name: "Single schedule entry - 12 seconds",
+			slotTimeSchedule: &params.SlotTimeSchedule{
+				{Epoch: 0, SlotDuration: 12 * time.Second},
+			},
+			expectedSecondsSlot: "12",
+			description:         "Standard mainnet configuration with 12 seconds per slot",
+		},
+		{
+			name: "Single schedule entry - 10 seconds",
+			slotTimeSchedule: &params.SlotTimeSchedule{
+				{Epoch: 0, SlotDuration: 10 * time.Second},
+			},
+			expectedSecondsSlot: "10",
+			description:         "E2E test configuration with 10 seconds per slot",
+		},
+		{
+			name: "Multiple schedule entries - uses epoch 0",
+			slotTimeSchedule: &params.SlotTimeSchedule{
+				{Epoch: 0, SlotDuration: 8 * time.Second},  // This should be returned
+				{Epoch: 5, SlotDuration: 6 * time.Second},  // This should be ignored
+				{Epoch: 10, SlotDuration: 4 * time.Second}, // This should be ignored
+			},
+			expectedSecondsSlot: "8",
+			description:         "Multiple entries should return the epoch 0 duration",
+		},
+		{
+			name:                "Empty schedule",
+			slotTimeSchedule:    &params.SlotTimeSchedule{},
+			expectedSecondsSlot: "0",
+			description:         "Empty schedule should return 0",
+		},
+		{
+			name:                "Nil schedule",
+			slotTimeSchedule:    nil,
+			expectedSecondsSlot: "0",
+			description:         "Nil schedule should return 0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			params.SetupTestConfigCleanup(t)
+			config := params.BeaconConfig().Copy()
+			
+			// Set up the slot time schedule for this test case
+			config.SlotTimeSchedule = tc.slotTimeSchedule
+			params.OverrideBeaconConfig(config)
+
+			// Call the API endpoint
+			request := httptest.NewRequest(http.MethodGet, "http://example.com/eth/v1/config/spec", nil)
+			writer := httptest.NewRecorder()
+			writer.Body = &bytes.Buffer{}
+
+			GetSpec(writer, request)
+			
+			// Verify the response
+			require.Equal(t, http.StatusOK, writer.Code, "API should return 200 OK")
+			
+			resp := structs.GetSpecResponse{}
+			require.NoError(t, json.Unmarshal(writer.Body.Bytes(), &resp), "Should unmarshal response successfully")
+			
+			data, ok := resp.Data.(map[string]interface{})
+			require.Equal(t, true, ok, "Response data should be a map")
+			
+			// Verify SECONDS_PER_SLOT is present and has the expected value
+			secondsPerSlot, exists := data["SECONDS_PER_SLOT"]
+			require.Equal(t, true, exists, "SECONDS_PER_SLOT should be present in the API response")
+			assert.Equal(t, tc.expectedSecondsSlot, secondsPerSlot, 
+				"SECONDS_PER_SLOT should match expected value: %s", tc.description)
+		})
+	}
+}
