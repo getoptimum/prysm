@@ -701,7 +701,7 @@ func TestGetSpec_SecondsPerSlot(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			params.SetupTestConfigCleanup(t)
 			config := params.BeaconConfig().Copy()
-			
+
 			// Set up the slot time schedule for this test case
 			config.SlotTimeSchedule = tc.slotTimeSchedule
 			params.OverrideBeaconConfig(config)
@@ -712,20 +712,20 @@ func TestGetSpec_SecondsPerSlot(t *testing.T) {
 			writer.Body = &bytes.Buffer{}
 
 			GetSpec(writer, request)
-			
+
 			// Verify the response
 			require.Equal(t, http.StatusOK, writer.Code, "API should return 200 OK")
-			
+
 			resp := structs.GetSpecResponse{}
 			require.NoError(t, json.Unmarshal(writer.Body.Bytes(), &resp), "Should unmarshal response successfully")
-			
+
 			data, ok := resp.Data.(map[string]interface{})
 			require.Equal(t, true, ok, "Response data should be a map")
-			
+
 			// Verify SECONDS_PER_SLOT is present and has the expected value
 			secondsPerSlot, exists := data["SECONDS_PER_SLOT"]
 			require.Equal(t, true, exists, "SECONDS_PER_SLOT should be present in the API response")
-			assert.Equal(t, tc.expectedSecondsSlot, secondsPerSlot, 
+			assert.Equal(t, tc.expectedSecondsSlot, secondsPerSlot,
 				"SECONDS_PER_SLOT should match expected value: %s", tc.description)
 		})
 	}

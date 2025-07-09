@@ -501,15 +501,20 @@ func (r *testRunner) defaultEndToEndRun() error {
 	}
 	// Test execution request processing in electra.
 	if r.config.TestDeposits && params.ElectraEnabled() {
-		if err := r.comHandler.txGen.Pause(); err != nil {
-			r.t.Error(err)
+		// Only pause/resume txGen if it was initialized
+		if r.comHandler.txGen != nil {
+			if err := r.comHandler.txGen.Pause(); err != nil {
+				r.t.Error(err)
+			}
 		}
 		err = r.depositor.SendAndMineByBatch(ctx, int(params.BeaconConfig().MinGenesisActiveValidatorCount)+int(e2e.DepositCount), int(e2e.PostElectraDepositCount), int(params.BeaconConfig().MaxDepositRequestsPerPayload), e2etypes.PostElectraDepositBatch, false)
 		if err != nil {
 			r.t.Error(err)
 		}
-		if err := r.comHandler.txGen.Resume(); err != nil {
-			r.t.Error(err)
+		if r.comHandler.txGen != nil {
+			if err := r.comHandler.txGen.Resume(); err != nil {
+				r.t.Error(err)
+			}
 		}
 	}
 

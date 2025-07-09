@@ -587,8 +587,11 @@ func TestToForkVersion(t *testing.T) {
 }
 
 func TestSlotTickerReplayBehaviour(t *testing.T) {
-	secondsPerslot := uint64(1)
-	st := NewSlotTicker(time.Unix(time.Now().Unix(), 0), params.SlotTimeSchedule{{Epoch: 0, SlotDuration: time.Second}}) // 1-second period
+	// Create a test schedule with 1-second slots as the test expects
+	testSchedule := &params.SlotTimeSchedule{
+		{Epoch: 0, SlotDuration: 1 * time.Second},
+	}
+	st := NewSlotTicker(time.Unix(time.Now().Unix(), 0), testSchedule) // 1-second period
 	const ticks = 5
 
 	ctx, cancel := context.WithTimeout(t.Context(), 6*time.Second) // make the timeout very close
@@ -599,7 +602,7 @@ func TestSlotTickerReplayBehaviour(t *testing.T) {
 	for counter < ticks {
 		select {
 		case <-st.C(): // simulate ticks faster than supposed iteration due to replaying old ticks
-			assert.Equal(t, true, time.Now().Sub(prevTime) < time.Duration(secondsPerslot)*time.Second)
+			assert.Equal(t, true, time.Now().Sub(prevTime) < testSchedule.SlotDuration(0))
 			counter++
 			prevTime = time.Now()
 		case <-ctx.Done(): // timed out before enough ticks arrived

@@ -224,8 +224,10 @@ func VotingPeriodStartTime(genesis uint64, slot primitives.Slot) uint64 {
 	schedule := params.BeaconConfig().SlotTimeSchedule
 	timeElapsed, err := schedule.SinceGenesis(periodStartSlot)
 	if err != nil {
-		// Fallback to hardcoded calculation if SinceGenesis fails
-		return genesis + uint64(periodStartSlot.Mul(12))
+		// Fallback calculation using average slot duration - still not ideal but better than hardcoded 12
+		// Use the first slot duration as a reasonable fallback
+		fallbackDuration := schedule.SlotDuration(0)
+		return genesis + uint64(time.Duration(periodStartSlot)*fallbackDuration/time.Second)
 	}
 
 	return genesis + uint64(timeElapsed.Seconds())

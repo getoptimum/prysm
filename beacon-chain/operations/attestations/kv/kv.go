@@ -9,6 +9,7 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/attestations/attmap"
 	"github.com/OffchainLabs/prysm/v6/config/params"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1/attestation"
 	"github.com/patrickmn/go-cache"
@@ -32,7 +33,12 @@ type AttCaches struct {
 // various kind of attestations.
 func NewAttCaches() *AttCaches {
 	// TODO(preston): Configure this cache to support SlotTimeSchedule. The problem with this is that it won't be updated across forks.
-	twoEpochs := 2 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
+	twoEpochsSlots := 2 * params.BeaconConfig().SlotsPerEpoch
+	twoEpochs, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(primitives.Slot(twoEpochsSlots))
+	if err != nil {
+		// Fallback to using slot 0 duration for all slots if there's an error
+		twoEpochs = 2 * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0) * time.Duration(params.BeaconConfig().SlotsPerEpoch)
+	}
 	c := cache.New(twoEpochs, twoEpochs)
 	pool := &AttCaches{
 		unAggregatedAtt: make(map[attestation.Id]ethpb.Att),

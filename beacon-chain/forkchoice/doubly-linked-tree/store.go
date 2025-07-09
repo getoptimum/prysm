@@ -282,9 +282,34 @@ func (f *ForkChoice) HighestReceivedBlockDelay() primitives.Slot {
 	if err != nil {
 		return 0
 	}
+
 	// TODO(preston): This isn't as easy as naively dividing `sss` by the current slot duration.
 	// It may exceed one or more slot time schedules. The following code is a temporary implementation.
-	return primitives.Slot(sss / params.BeaconConfig().SlotTimeSchedule.SlotDuration(n.slot))
+
+	// For variable slot durations, we need to calculate how many slots the delay represents
+	// by working forward from the block's slot time
+	schedule := params.BeaconConfig().SlotTimeSchedule
+	delaySlots := primitives.Slot(0)
+	remainingTime := sss
+
+	// Start from the block's slot and count forward
+	currentSlot := n.slot
+	for remainingTime > 0 {
+		slotDuration := schedule.SlotDuration(currentSlot)
+		if remainingTime >= slotDuration {
+			delaySlots++
+			remainingTime -= slotDuration
+			currentSlot++
+		} else {
+			// Partial slot - round up if more than half a slot
+			if remainingTime >= slotDuration/2 {
+				delaySlots++
+			}
+			break
+		}
+	}
+
+	return delaySlots
 }
 
 // ReceivedBlocksLastEpoch returns the number of blocks received in the last epoch

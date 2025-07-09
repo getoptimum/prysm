@@ -205,7 +205,13 @@ func NewSlotTickerWithIntervals(genesisTime time.Time, intervals []time.Duration
 	}
 	// TODO(preston): The one or more of the callers of this function expect 12 second slot times. This method will need to be reworked
 	// properly account for the use cases where the caller wants an event at some fraction of a slot. I.e. half way, two thirds, etc.
-	slotDuration := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+
+	// For validation purposes, use the slot duration from slot 0
+	// The ticker is primarily designed for the first slot duration
+	schedule := params.BeaconConfig().SlotTimeSchedule
+	slotDuration := schedule.SlotDuration(0)
+
+	// Validate intervals are increasing and not too large before adjustment
 	lastOffset := time.Duration(0)
 	for _, offset := range intervals {
 		if offset < lastOffset {
@@ -216,6 +222,8 @@ func NewSlotTickerWithIntervals(genesisTime time.Time, intervals []time.Duration
 		}
 		lastOffset = offset
 	}
+
+	// All intervals are already validated to be within bounds
 	ticker := &SlotIntervalTicker{
 		c:    make(chan SlotInterval),
 		done: make(chan struct{}),

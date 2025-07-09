@@ -53,19 +53,18 @@ func NewBuilder(t testing.TB, initialState state.BeaconState, initialBlock inter
 func (bb *Builder) Tick(t testing.TB, tick int64) {
 	gt := time.Unix(time.Now().Unix()-tick, 0)
 	bb.service.SetGenesisTime(gt)
+
+	// Use consistent genesis time for fork choice
+	bb.service.SetForkChoiceGenesisTime(gt)
+
 	lastTickGT := time.Unix(time.Now().Unix()-bb.lastTick, 0)
 	lastSlot := params.BeaconConfig().SlotTimeSchedule.CurrentSlot(lastTickGT)
 	currentSlot := params.BeaconConfig().SlotTimeSchedule.CurrentSlot(gt)
 	for lastSlot < currentSlot {
 		lastSlot++
-		bb.service.SetForkChoiceGenesisTime(lastTickGT)
 		require.NoError(t, bb.service.NewSlot(t.Context(), primitives.Slot(lastSlot)))
 	}
-	// TODO(preston): Verify this. What is this function doing?
-	//if tick > int64(params.BeaconConfig().SecondsPerSlot*lastSlot) {
-	if tick > bb.lastTick {
-		bb.service.SetForkChoiceGenesisTime(time.Now().Add(-1 * time.Duration(tick) * time.Second))
-	}
+
 	bb.lastTick = tick
 }
 

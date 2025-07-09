@@ -8,6 +8,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/async"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
@@ -121,7 +122,10 @@ func TestPruneExpired_Expired(t *testing.T) {
 	require.NoError(t, err)
 
 	// Rewind back one epoch worth of time.
-	s.SetGenesisTime(time.Now().Add(-1 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)))
+	oneEpochSlots := params.BeaconConfig().SlotsPerEpoch
+	timeSinceGenesis, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(primitives.Slot(oneEpochSlots))
+	require.NoError(t, err)
+	s.SetGenesisTime(time.Now().Add(-timeSinceGenesis))
 	assert.Equal(t, true, s.expired(0), "Should be expired")
 	assert.Equal(t, false, s.expired(1), "Should not be expired")
 }
@@ -136,8 +140,10 @@ func TestPruneExpired_ExpiredDeneb(t *testing.T) {
 	require.NoError(t, err)
 
 	// Rewind back 4 epochs + 10 slots worth of time.
-	sd := params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
-	s.SetGenesisTime(time.Now().Add(-4 * time.Duration(params.BeaconConfig().SlotsPerEpoch) * sd).Add(-10 * sd))
+	totalSlots := 4*params.BeaconConfig().SlotsPerEpoch + 10
+	timeSinceGenesis, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(primitives.Slot(totalSlots))
+	require.NoError(t, err)
+	s.SetGenesisTime(time.Now().Add(-timeSinceGenesis))
 	secondEpochStart := slots.UnsafeEpochStart(2)
 	thirdEpochStart := slots.UnsafeEpochStart(3)
 

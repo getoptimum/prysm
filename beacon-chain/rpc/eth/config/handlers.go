@@ -98,7 +98,7 @@ func prepareConfigSpec() (map[string]string, error) {
 		tagValue := strings.ToUpper(tField.Tag.Get("yaml"))
 		vField := v.Field(i)
 
-    // Backwards compatability: Special handling for SECONDS_PER_SLOT.
+		// Backwards compatability: Special handling for SECONDS_PER_SLOT.
 		if tagValue == "SECONDS_PER_SLOT" {
 			if config.SlotTimeSchedule != nil && config.SlotTimeSchedule.Length() > 0 {
 				duration := config.SlotTimeSchedule.SlotDuration(0)
