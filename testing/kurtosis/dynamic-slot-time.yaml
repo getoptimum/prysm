@@ -5,31 +5,32 @@ participants:
     vc_image: gcr.io/offchainlabs/prysm/validator:dynamic_slots
     count: 3
 additional_services:
+  - dora
   - prometheus
   - grafana
 network_params:
   slot_time_schedule:
     - EPOCH: 0
       SLOT_DURATION: 12000  # 12 seconds in milliseconds
-    - EPOCH: 10
+    - EPOCH: 1
       SLOT_DURATION: 11000  # 11 seconds  
-    - EPOCH: 20
+    - EPOCH: 2
       SLOT_DURATION: 10000  # 10 seconds
-    - EPOCH: 30
+    - EPOCH: 3
       SLOT_DURATION: 9000 
-    - EPOCH: 40
+    - EPOCH: 4
       SLOT_DURATION: 8000
-    - EPOCH: 50
+    - EPOCH: 5
       SLOT_DURATION: 7000
-    - EPOCH: 60
+    - EPOCH: 6
       SLOT_DURATION: 6000
-    - EPOCH: 70
+    - EPOCH: 7
       SLOT_DURATION: 5000
-    - EPOCH: 80
+    - EPOCH: 8
       SLOT_DURATION: 4000
-    - EPOCH: 90
+    - EPOCH: 9
       SLOT_DURATION: 3000
-    - EPOCH: 100
+    - EPOCH: 10
       SLOT_DURATION: 2000
-    - EPOCH: 110
+    - EPOCH: 11
       SLOT_DURATION: 1000

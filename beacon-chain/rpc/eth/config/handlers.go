@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -104,6 +105,20 @@ func prepareConfigSpec() (map[string]string, error) {
 				data[tagValue] = strconv.FormatUint(uint64(duration.Seconds()), 10)
 			} else {
 				data[tagValue] = "0"
+			}
+			continue
+		}
+
+		// Special handling for SLOT_TIME_SCHEDULE.
+		if tagValue == "SLOT_TIME_SCHEDULE" {
+			if config.SlotTimeSchedule != nil {
+				jsonBytes, err := json.Marshal(config.SlotTimeSchedule)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal SLOT_TIME_SCHEDULE: %w", err)
+				}
+				data[tagValue] = string(jsonBytes)
+			} else {
+				data[tagValue] = "null"
 			}
 			continue
 		}

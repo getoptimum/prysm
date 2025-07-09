@@ -201,7 +201,7 @@ func TestGetSpec(t *testing.T) {
 	data, ok := resp.Data.(map[string]interface{})
 	require.Equal(t, true, ok)
 
-	assert.Equal(t, 175, len(data))
+	assert.Equal(t, 176, len(data))
 	for k, v := range data {
 		t.Run(k, func(t *testing.T) {
 			switch k {
@@ -293,6 +293,15 @@ func TestGetSpec(t *testing.T) {
 				assert.Equal(t, "24", v)
 			case "SECONDS_PER_SLOT":
 				assert.Equal(t, "25", v)
+			case "SLOT_TIME_SCHEDULE":
+				// SLOT_TIME_SCHEDULE should be a JSON string representing the schedule
+				jsonStr, ok := v.(string)
+				require.Equal(t, true, ok, "SLOT_TIME_SCHEDULE should be a JSON string")
+				// Basic validation that it's valid JSON with expected structure
+				var schedule []map[string]interface{}
+				err := json.Unmarshal([]byte(jsonStr), &schedule)
+				require.NoError(t, err, "SLOT_TIME_SCHEDULE should be valid JSON")
+				require.Equal(t, true, len(schedule) > 0, "SLOT_TIME_SCHEDULE should have at least one entry")
 			case "MIN_ATTESTATION_INCLUSION_DELAY":
 				assert.Equal(t, "26", v)
 			case "SLOTS_PER_EPOCH":
