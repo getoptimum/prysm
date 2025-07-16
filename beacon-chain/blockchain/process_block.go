@@ -566,15 +566,44 @@ func (s *Service) runLateBlockTasks() {
 		return
 	}
 
-	// TODO(preston): Is there something about attestation deadline?
-	// TODO(preston): This needs to be updated as the time schedule changes.
-	attThreshold := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(s.genesisTime) / 3
-	ticker := slots.NewSlotTickerWithOffset(s.genesisTime, attThreshold, params.BeaconConfig().SlotTimeSchedule)
+	// Create a dynamic slot ticker that ticks at 1/3 of each slot's duration
+	// This replaces the fixed offset approach to handle variable slot durations
+	schedule := params.BeaconConfig().SlotTimeSchedule
+
+	// Start from the current slot to avoid replaying old slots
+	currentSlot := schedule.CurrentSlot(s.genesisTime)
+
 	for {
+		// Calculate the attestation threshold for the current slot
+		slotDuration := schedule.SlotDuration(currentSlot)
+		attThreshold := slotDuration / 3
+
+		// Calculate when to trigger the late block tasks for this slot
+		slotStartTime, err := slots.StartTime(s.genesisTime, currentSlot)
+		if err != nil {
+			log.WithError(err).Error("Failed to calculate slot start time")
+			currentSlot++
+			continue
+		}
+
+		thresholdTime := slotStartTime.Add(attThreshold)
+		timeUntilThreshold := time.Until(thresholdTime)
+
+		// If threshold time has already passed, skip to next slot
+		if timeUntilThreshold <= 0 {
+			currentSlot++
+			continue
+		}
+
+		// Wait until the threshold time for this slot
+		timer := time.NewTimer(timeUntilThreshold)
+
 		select {
-		case <-ticker.C():
+		case <-timer.C:
 			s.lateBlockTasks(s.ctx)
+			currentSlot++
 		case <-s.ctx.Done():
+			timer.Stop()
 			log.Debug("Context closed, exiting routine")
 			return
 		}
