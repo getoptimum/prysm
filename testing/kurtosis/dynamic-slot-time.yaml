@@ -9,28 +9,17 @@ additional_services:
   - prometheus
   - grafana
 network_params:
+  preset: "minimal"
   slot_time_schedule:
     - EPOCH: 0
-      SLOT_DURATION: 12000  # 12 seconds in milliseconds
+      SLOT_DURATION: 6000  # 6 seconds in milliseconds
     - EPOCH: 1
-      SLOT_DURATION: 11000  # 11 seconds  
+      SLOT_DURATION: 5000  # 5 seconds  
     - EPOCH: 2
-      SLOT_DURATION: 10000  # 10 seconds
+      SLOT_DURATION: 4000  # 4 seconds
     - EPOCH: 3
-      SLOT_DURATION: 9000 
+      SLOT_DURATION: 3000  # 3 seconds
     - EPOCH: 4
-      SLOT_DURATION: 8000
+      SLOT_DURATION: 2000  # 2 seconds
     - EPOCH: 5
-      SLOT_DURATION: 7000
-    - EPOCH: 6
-      SLOT_DURATION: 6000
-    - EPOCH: 7
-      SLOT_DURATION: 5000
-    - EPOCH: 8
-      SLOT_DURATION: 4000
-    - EPOCH: 9
-      SLOT_DURATION: 3000
-    - EPOCH: 10
-      SLOT_DURATION: 2000
-    - EPOCH: 11
-      SLOT_DURATION: 1000
+      SLOT_DURATION: 1000  # 1 second

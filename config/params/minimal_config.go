@@ -131,7 +131,12 @@ func MinimalSpecConfig() *BeaconChainConfig {
 	minimalConfig.BlobSchedule = make([]BlobScheduleEntry, 0)
 
 	minimalConfig.SlotTimeSchedule = &SlotTimeSchedule{
-		{Epoch: 0, SlotDuration: 6 * time.Second},
+		{Epoch: 0, SlotDuration: time.Second * 6},
+		{Epoch: 1, SlotDuration: time.Second * 5},
+		{Epoch: 2, SlotDuration: time.Second * 4},
+		{Epoch: 3, SlotDuration: time.Second * 3},
+		{Epoch: 4, SlotDuration: time.Second * 2},
+		{Epoch: 5, SlotDuration: time.Second * 1},
 	}
 
 	minimalConfig.InitializeForkSchedule()
