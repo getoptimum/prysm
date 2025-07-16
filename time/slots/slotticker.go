@@ -137,8 +137,9 @@ func (s *SlotTicker) start(
 			select {
 			case <-after(waitTime):
 				s.c <- slot
+				currentSlotDuration := s.schedule.SlotDuration(slot)
 				slot++
-				nextTickTime = nextTickTime.Add(s.schedule.SlotDuration(slot))
+				nextTickTime = nextTickTime.Add(currentSlotDuration)
 			case <-s.done:
 				return
 			}
