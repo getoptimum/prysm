@@ -432,8 +432,12 @@ func (v *validator) NextSlot() <-chan primitives.Slot {
 // SlotDeadline is the start time of the next slot.
 func (v *validator) SlotDeadline(slot primitives.Slot) time.Time {
 	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot + 1)
-	if err != nil { // TODO(preston): Handle
-		panic(err) // lint:nopanic
+	if err != nil {
+		log.WithError(err).WithField("slot", slot+1).Error("Failed to calculate time since genesis for slot deadline, using fallback calculation")
+		// Fallback: calculate using current slot duration as approximation
+		// This provides graceful degradation rather than crashing the validator
+		currentDuration := params.BeaconConfig().SlotTimeSchedule.CurrentSlotDuration(v.genesisTime)
+		sg = time.Duration(slot+1) * currentDuration
 	}
 	return v.genesisTime.Add(sg)
 }
