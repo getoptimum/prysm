@@ -738,7 +738,16 @@ func registerSyncSubnetInternal(
 	if err != nil {
 		epochsToWatch = 0
 	}
-	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch) * params.BeaconConfig().SlotTimeSchedule.SlotDuration(slots.UnsafeEpochStart(currEpoch)) // TODO(preston): Handle unsafe
+	epochStartSlot, err := slots.EpochStart(currEpoch)
+	var slotDuration time.Duration
+	if err != nil {
+		// An overflow of the epoch calculation should never happen.
+		log.WithError(err).WithField("epoch", currEpoch).Error("Failed to calculate epoch start slot, using genesis slot duration")
+		slotDuration = params.BeaconConfig().SlotTimeSchedule.SlotDuration(0)
+	} else {
+		slotDuration = params.BeaconConfig().SlotTimeSchedule.SlotDuration(epochStartSlot)
+	}
+	epochDuration := time.Duration(params.BeaconConfig().SlotsPerEpoch) * slotDuration
 	totalDuration := epochDuration * time.Duration(epochsToWatch) * time.Second
 	cache.SyncSubnetIDs.AddSyncCommitteeSubnets(pubkey, startEpoch, subs, totalDuration)
 }

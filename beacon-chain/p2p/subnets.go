@@ -490,8 +490,12 @@ func computeSubscriptionExpirationTime(nodeID enode.ID, epoch primitives.Epoch) 
 	nodeOffset, _ := computeOffsetAndPrefix(nodeID)
 	pastEpochs := (nodeOffset + uint64(epoch)) % cfg.EpochsPerSubnetSubscription
 	remEpochs := cfg.EpochsPerSubnetSubscription - pastEpochs
-	// TODO(preston): This should probably use the "safe" alternative to UnsafeEpochStart.
-	epochDuration := cfg.SlotTimeSchedule.SlotDuration(slots.UnsafeEpochStart(epoch)) * time.Duration(cfg.SlotsPerEpoch)
+	epochStartSlot, err := slots.EpochStart(epoch)
+	if err != nil {
+		log.WithError(err).WithField("epoch", epoch).Error("Failed to calculate epoch start slot, using epoch 0 as fallback")
+		epochStartSlot = 0
+	}
+	epochDuration := cfg.SlotTimeSchedule.SlotDuration(epochStartSlot) * time.Duration(cfg.SlotsPerEpoch)
 	epochTime := time.Duration(remEpochs) * epochDuration
 	return epochTime
 }
