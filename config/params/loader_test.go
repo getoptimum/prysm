@@ -105,7 +105,7 @@ func assertEqualConfigs(t *testing.T, name string, fields []string, expected, ac
 
 	// Time parameters.
 	assert.Equal(t, expected.GenesisDelay, actual.GenesisDelay, "%s: GenesisDelay", name)
-	//assert.Equal(t, expected.SecondsPerSlot, actual.SecondsPerSlot, "%s: SecondsPerSlot", name) // TODO(preston): Check backwards compatability.
+	assert.Equal(t, expected.DeprecatedSecondsPerSlot, actual.DeprecatedSecondsPerSlot, "%s: DeprecatedSecondsPerSlot", name)
 	assert.Equal(t, expected.MinAttestationInclusionDelay, actual.MinAttestationInclusionDelay, "%s: MinAttestationInclusionDelay", name)
 	assert.Equal(t, expected.SlotsPerEpoch, actual.SlotsPerEpoch, "%s: SlotsPerEpoch", name)
 	assert.Equal(t, expected.MinSeedLookahead, actual.MinSeedLookahead, "%s: MinSeedLookahead", name)
@@ -345,8 +345,8 @@ func TestConfigParityYaml(t *testing.T) {
 	require.NoError(t, params.LoadChainConfigFile(yamlDir, params.E2ETestConfig().Copy()))
 
 	compareConfigs(t, params.BeaconConfig(), testCfg)
-	// TODO(preston): This panics, so we need another way to ensure this is ok.
-	//assert.DeepEqual(t, params.BeaconConfig(), testCfg)
+	// Use DeepEqual to compare the entire config as a failsafe
+	assert.DeepEqual(t, testCfg, params.BeaconConfig())
 }
 
 // configFilePath sets the proper config and returns the relevant

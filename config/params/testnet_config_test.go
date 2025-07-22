@@ -25,8 +25,7 @@ func TestE2EConfigParity(t *testing.T) {
 	// compareConfigs makes it easier to figure out exactly what changed
 	compareConfigs(t, params.BeaconConfig(), testCfg)
 	// failsafe in case compareConfigs is not updated when new fields are added
-	// TODO(preston): This panics, so we need another way to ensure this is ok.
-	// require.DeepEqual(t, params.BeaconConfig(), testCfg)
+	require.DeepEqual(t, testCfg, params.BeaconConfig())
 }
 
 func compareConfigs(t *testing.T, expected, actual *params.BeaconChainConfig) {

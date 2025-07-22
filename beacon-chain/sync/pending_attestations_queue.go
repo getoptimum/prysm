@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"sync"
+	"time"
 
 	"github.com/OffchainLabs/prysm/v6/async"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/blockchain"

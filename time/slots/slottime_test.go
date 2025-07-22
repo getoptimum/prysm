@@ -464,7 +464,6 @@ func TestSinceSlotStart(t *testing.T) {
 	}
 }
 
-
 func TestWithinVotingWindow(t *testing.T) {
 	genesisTime := time.Now().Add(-37 * time.Second)
 	require.Equal(t, true, WithinVotingWindow(genesisTime, 3))
