@@ -3,6 +3,7 @@ package params
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
@@ -124,12 +125,30 @@ func unsafeEpochStart(epoch primitives.Epoch) primitives.Slot {
 }
 
 func (s *SlotTimeSchedule) sort() {
-	// TODO(preston): How to ensure the list is sorted at least once and remains sorted?
-
-	// TODO(preston): For now, run the validity check and panic to find test issues.
-	if err := s.IsValid(); err != nil {
-		panic(err) // lint:nopanic -- TODO(preston) - Remove
+	if s != nil && s.Length() > 1 {
+		sort.Sort(s)
 	}
+
+	// Validate after sorting to ensure schedule integrity.
+	// Invalid schedules indicate a programming error in configuration that should be
+	// caught during development/testing. We panic here to fail fast rather than
+	// silently return incorrect slot calculations.
+	if err := s.IsValid(); err != nil {
+		panic(fmt.Sprintf("invalid SlotTimeSchedule configuration: %v", err)) // lint:nopanic -- Programming error that must be fixed during development
+	}
+}
+
+// Implement sort.Interface for SlotTimeSchedule
+func (s *SlotTimeSchedule) Len() int {
+	return s.Length()
+}
+
+func (s *SlotTimeSchedule) Less(i, j int) bool {
+	return (*s)[i].Epoch < (*s)[j].Epoch
+}
+
+func (s *SlotTimeSchedule) Swap(i, j int) {
+	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
 }
 
 // SlotDuration returns the amount of time in a given slot. For example, 12 seconds per slot for
@@ -188,6 +207,12 @@ func (s *SlotTimeSchedule) UnmarshalYAML(n *yaml.Node) error {
 	}
 
 	*s = entries
+
+	// Validate the schedule during unmarshaling to catch configuration errors early
+	if err := s.IsValid(); err != nil {
+		return fmt.Errorf("invalid SlotTimeSchedule configuration: %v", err)
+	}
+
 	return nil
 }
 
