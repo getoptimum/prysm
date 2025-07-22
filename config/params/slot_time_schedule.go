@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
@@ -170,7 +171,16 @@ func (s *SlotTimeSchedule) SlotDuration(slot primitives.Slot) time.Duration {
 		}
 	}
 
-	return 0 // TODO(preston): Maybe this should be an error, but handling an error on this would be really annoying.
+	// This should be unreachable for valid schedules (which must start at epoch 0)
+	// but we defensively return epoch 0's duration if we somehow get here
+	if s.Length() > 0 {
+		log.WithField("slot", slot).Warn("SlotDuration: slot before first epoch, using epoch 0 duration")
+		return (*s)[0].SlotDuration
+	}
+
+	// If we have no entries at all, this is a programming error
+	log.WithField("slot", slot).Error("SlotDuration: empty schedule - this should not happen")
+	return 0
 }
 
 // Length returns the number of entries in the SlotTimeSchedule.
