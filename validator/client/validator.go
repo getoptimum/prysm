@@ -368,7 +368,7 @@ func (v *validator) WaitForSync(ctx context.Context) error {
 	for {
 		select {
 		// Poll every half slot.
-		case <-time.After(slots.DivideSlotBy(0 /*slot TODO(preston): gotta deal with this*/, 2 /* twice per slot */)):
+		case <-time.After(slots.DivideSlotBy(slots.CurrentSlot(v.genesisTime), 2 /* twice per slot */)):
 			s, err := v.nodeClient.SyncStatus(ctx, &emptypb.Empty{})
 			if err != nil {
 				return errors.Wrap(client.ErrConnectionIssue, errors.Wrap(err, "could not get sync status").Error())
