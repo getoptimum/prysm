@@ -13,7 +13,6 @@ import (
 // Helper function to simulate the block being on time or delayed for proposer
 // boost. It alters the genesisTime tracked by the store.
 func driftGenesisTime(f *ForkChoice, slot primitives.Slot, delay time.Duration) {
-	// TODO(preston): Cleanup this. The snippet below is the working code.
 	genesis := time.Now()
 	s, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(slot)
 	if err != nil {
