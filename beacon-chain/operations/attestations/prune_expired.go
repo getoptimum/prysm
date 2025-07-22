@@ -98,9 +98,8 @@ func (s *Service) expiredPreDeneb(slot primitives.Slot) bool {
 	expirationSlot := slot + params.BeaconConfig().SlotsPerEpoch
 	sg, err := params.BeaconConfig().SlotTimeSchedule.SinceGenesis(expirationSlot)
 	if err != nil {
-		// TODO(preston): What should the default behavior be in the case of an error?
-		// The only error would be an overflow. Maybe better to declare this problematic
-		// as expired.
+		// SinceGenesis failed, likely due to slot overflow. Attestations with impossible
+		// future slots are invalid and should be pruned to prevent cache bloat.
 		return true
 	}
 	expirationTime := s.genesisTime.Add(sg)
