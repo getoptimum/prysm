@@ -139,6 +139,8 @@ func MinimalSpecConfig() *BeaconChainConfig {
 		{Epoch: 5, SlotDuration: time.Second * 1},
 	}
 
+	minimalConfig.DeprecatedSecondsPerSlot = 6 // Derived from SlotTimeSchedule for YAML compatibility
+
 	minimalConfig.InitializeForkSchedule()
 	return minimalConfig
 }

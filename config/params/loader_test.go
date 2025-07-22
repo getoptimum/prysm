@@ -183,7 +183,6 @@ func TestModifiedE2E(t *testing.T) {
 }
 
 func TestLoadConfigFile(t *testing.T) {
-	t.Skip("TODO(preston): Failing because I deleted SECONDS_PER_SLOT")
 	t.Run("mainnet", func(t *testing.T) {
 		mn := params.MainnetConfig()
 		mainnetPresetsFiles := presetsFilePath(t, "mainnet")
@@ -415,7 +414,9 @@ func assertYamlFieldsMatch(t *testing.T, name string, fields []string, c1, c2 *p
 				found = true
 				v1 := reflect.ValueOf(*c1).Field(i).Interface()
 				v2 := reflect.ValueOf(*c2).Field(i).Interface()
-				if reflect.ValueOf(v1).Kind() == reflect.Slice {
+				rv1 := reflect.ValueOf(v1)
+				if rv1.Kind() == reflect.Slice ||
+					(rv1.Kind() == reflect.Ptr && rv1.Type().Elem().Kind() == reflect.Slice) {
 					assert.DeepEqual(t, v1, v2, "%s: %s", name, field)
 				} else {
 					assert.Equal(t, v1, v2, "%s: %s", name, field)

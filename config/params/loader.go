@@ -67,6 +67,10 @@ func UnmarshalConfig(yamlFile []byte, conf *BeaconChainConfig) (*BeaconChainConf
 	}
 	// recompute SqrRootSlotsPerEpoch constant to handle non-standard values of SlotsPerEpoch
 	conf.SqrRootSlotsPerEpoch = primitives.Slot(math.IntegerSquareRoot(uint64(conf.SlotsPerEpoch)))
+	// Populate DeprecatedSecondsPerSlot from SlotTimeSchedule for YAML compatibility if not explicitly set
+	if conf.DeprecatedSecondsPerSlot == 0 && conf.SlotTimeSchedule != nil && len(*conf.SlotTimeSchedule) > 0 {
+		conf.DeprecatedSecondsPerSlot = uint64((*conf.SlotTimeSchedule)[0].SlotDuration.Seconds())
+	}
 	// Recompute the fork schedule
 	conf.InitializeForkSchedule()
 	log.Debugf("Config file values: %+v", conf)

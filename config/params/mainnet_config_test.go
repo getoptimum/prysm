@@ -37,7 +37,6 @@ func TestMaxRequestBlock(t *testing.T) {
 }
 
 func TestMainnetConfigMatchesUpstreamYaml(t *testing.T) {
-	t.Skip("TODO(preston): Failing because I deleted SECONDS_PER_SLOT")
 	presetFPs := presetsFilePath(t, "mainnet")
 	mn, err := params.ByName(params.MainnetName)
 	require.NoError(t, err)

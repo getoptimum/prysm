@@ -345,6 +345,8 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	SlotTimeSchedule: &SlotTimeSchedule{
 		{Epoch: 0, SlotDuration: time.Second * 12},
 	},
+
+	DeprecatedSecondsPerSlot: 12, // Derived from SlotTimeSchedule for YAML compatibility
 }
 
 // MainnetTestConfig provides a version of the mainnet config that has a different name
