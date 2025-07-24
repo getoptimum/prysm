@@ -7,6 +7,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1/metadata"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -202,7 +203,8 @@ func (*FakeP2P) CustodyGroupCount() uint64 {
 }
 
 // SetCustostyGroupCount -- fake.
-func (*FakeP2P) SetCustodyGroupCount(uint64) {
+func (s *FakeP2P) UpdateCustodyInfo(earliestAvailableSlot primitives.Slot, custodyGroupCount uint64) (primitives.Slot, uint64, error) {
+	return earliestAvailableSlot, custodyGroupCount, nil
 }
 
 // CustodyGroupCountFromPeer -- fake.
