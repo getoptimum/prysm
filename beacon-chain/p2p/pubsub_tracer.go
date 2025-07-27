@@ -1,13 +1,13 @@
 package p2p
 
 import (
-	"fmt"
 	"github.com/OffchainLabs/prysm/v6/utils"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"time"
 )
 
@@ -18,6 +18,10 @@ const (
 	recv action = iota
 	send
 	drop
+)
+
+var (
+	gsLibP2PTotalMessages *prometheus.CounterVec
 )
 
 // This tracer is used to implement metrics collection for messages received
@@ -35,18 +39,11 @@ func newGossipTracer(host host.Host) *gossipTracer {
 		duplicateMap:      utils.NewTTLMap[string, peer.ID](1*time.Minute, 1*time.Minute),
 		firstPeerMessages: utils.NewRWMap[peer.ID, int](),
 	}
-	go s.dumpData()
+	gsLibP2PTotalMessages = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "p2p_peers_stats",
+		Help: "Peer statistics who was the first to send a message",
+	}, []string{"peer_id"})
 	return s
-}
-
-func (g *gossipTracer) dumpData() {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for range ticker.C {
-		for p, count := range g.firstPeerMessages.LoadAll() {
-			println(fmt.Sprintf("---- %s %d", p.String(), count))
-		}
-	}
 }
 
 // AddPeer .
@@ -98,6 +95,7 @@ func (g *gossipTracer) RejectMessage(msg *pubsub.Message, reason string) {
 func (g *gossipTracer) DuplicateMessage(msg *pubsub.Message) {
 	pubsubMessageDuplicate.WithLabelValues(*msg.Topic).Inc()
 	if _, ok := g.duplicateMap.Get(msg.ID); !ok {
+		gsLibP2PTotalMessages.WithLabelValues(msg.ReceivedFrom.String()).Inc()
 		g.duplicateMap.Put(msg.ID, msg.ReceivedFrom)
 		curVal, _ := g.firstPeerMessages.Load(msg.ReceivedFrom)
 		g.firstPeerMessages.Store(msg.ReceivedFrom, curVal+1)
