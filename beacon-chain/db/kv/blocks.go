@@ -336,6 +336,42 @@ func (s *Store) HasBlock(ctx context.Context, blockRoot [32]byte) bool {
 	return exists
 }
 
+// AvailableBlocks returns a set of roots indicating which blocks corresponding to `blockRoots` are available in the storage.
+func (s *Store) AvailableBlocks(ctx context.Context, blockRoots [][32]byte) map[[32]byte]bool {
+	_, span := trace.StartSpan(ctx, "BeaconDB.AvailableBlocks")
+	defer span.End()
+
+	count := len(blockRoots)
+	availableRoots := make(map[[32]byte]bool, count)
+
+	// First, check the cache for each block root.
+	notInCacheRoots := make([][32]byte, 0, count)
+	for _, root := range blockRoots {
+		if v, ok := s.blockCache.Get(string(root[:])); v != nil && ok {
+			availableRoots[root] = true
+			continue
+		}
+
+		notInCacheRoots = append(notInCacheRoots, root)
+	}
+
+	// Next, check the database for the remaining block roots.
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(blocksBucket)
+		for _, root := range notInCacheRoots {
+			if bkt.Get(root[:]) != nil {
+				availableRoots[root] = true
+			}
+		}
+
+		return nil
+	}); err != nil {
+		panic(err) // lint:nopanic -- View never returns an error.
+	}
+
+	return availableRoots
+}
+
 // BlocksBySlot retrieves a list of beacon blocks and its respective roots by slot.
 func (s *Store) BlocksBySlot(ctx context.Context, slot primitives.Slot) ([]interfaces.ReadOnlySignedBeaconBlock, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.BlocksBySlot")
@@ -860,6 +896,47 @@ func (s *Store) SaveRegistrationsByValidatorIDs(ctx context.Context, ids []primi
 	})
 }
 
+// EarliestStoredSlot returns the earliest slot in the database.
+func (s *Store) EarliestSlot(ctx context.Context) (primitives.Slot, error) {
+	slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
+	_, span := trace.StartSpan(ctx, "BeaconDB.EarliestSlot")
+	defer span.End()
+
+	earliestAvailableSlot := primitives.Slot(0)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		// Retrieve the root corresponding to the earliest available block.
+		c := tx.Bucket(blockSlotIndicesBucket).Cursor()
+		k, v := c.First()
+		if k == nil || v == nil {
+			return ErrNotFound
+		}
+		slot := bytesutil.BytesToSlotBigEndian(k)
+
+		// The genesis block may be indexed in this bucket, even if we started from a checkpoint.
+		// Because of this, we check the next block. If the next block is still in the genesis epoch,
+		// then we consider we have the whole chain.
+		if slot != 0 {
+			earliestAvailableSlot = slot
+		}
+
+		k, v = c.Next()
+		if k == nil || v == nil {
+			// Only the genesis block is available.
+			return nil
+		}
+		slot = bytesutil.BytesToSlotBigEndian(k)
+		if slot < slotsPerEpoch {
+			// We are still in the genesis epoch, so we consider we have the whole chain.
+			return nil
+		}
+
+		earliestAvailableSlot = slot
+		return nil
+	})
+
+	return earliestAvailableSlot, err
+}
+
 type slotRoot struct {
 	slot primitives.Slot
 	root [32]byte
@@ -883,7 +960,7 @@ func (s *Store) slotRootsInRange(ctx context.Context, start, end primitives.Slot
 		c := bkt.Cursor()
 		for k, v := c.Seek(key); ; /* rely on internal checks to exit */ k, v = c.Prev() {
 			if len(k) == 0 && len(v) == 0 {
-				// The `edge`` variable and this `if` deal with 2 edge cases:
+				// The `edge` variable and this `if` deal with 2 edge cases:
 				// - Seeking past the end of the bucket (the `end` param is higher than the highest slot).
 				// - Seeking before the beginning of the bucket (the `start` param is lower than the lowest slot).
 				// In both of these cases k,v will be nil and we can handle the same way using `edge` to

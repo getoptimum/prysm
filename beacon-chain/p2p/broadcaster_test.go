@@ -11,20 +11,20 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/blockchain/kzg"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/helpers"
-	lightClient "github.com/OffchainLabs/prysm/v6/beacon-chain/core/light-client"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers/scorers"
 	p2ptest "github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/testing"
 	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/flags"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
+	"github.com/OffchainLabs/prysm/v6/config/params"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/blocks"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/wrapper"
 	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
-	"github.com/OffchainLabs/prysm/v6/network/forks"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	testpb "github.com/OffchainLabs/prysm/v6/proto/testing"
-	"github.com/OffchainLabs/prysm/v6/runtime/version"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
 	"github.com/OffchainLabs/prysm/v6/testing/require"
 	"github.com/OffchainLabs/prysm/v6/testing/util"
@@ -229,6 +229,7 @@ func TestService_BroadcastAttestationWithDiscoveryAttempts(t *testing.T) {
 		cfg:                   cfg,
 		genesisTime:           genesisTime,
 		genesisValidatorsRoot: genesisValidatorsRoot,
+		custodyInfo:           &custodyInfo{},
 	}
 	bootListener, err := s.createListener(ipAddr, pkey)
 	require.NoError(t, err)
@@ -257,6 +258,7 @@ func TestService_BroadcastAttestationWithDiscoveryAttempts(t *testing.T) {
 			cfg:                   cfg,
 			genesisTime:           genesisTime,
 			genesisValidatorsRoot: genesisValidatorsRoot,
+			custodyInfo:           &custodyInfo{},
 		}
 		listener, err := s.startDiscoveryV5(ipAddr, pkey)
 		// Set for 2nd peer
@@ -265,7 +267,8 @@ func TestService_BroadcastAttestationWithDiscoveryAttempts(t *testing.T) {
 			s.metaData = wrapper.WrappedMetadataV0(new(ethpb.MetaDataV0))
 			bitV := bitfield.NewBitvector64()
 			bitV.SetBitAt(subnet, true)
-			s.updateSubnetRecordWithMetadata(bitV)
+			err := s.updateSubnetRecordWithMetadata(bitV)
+			require.NoError(t, err)
 		}
 		assert.NoError(t, err, "Could not start discovery for node")
 		listeners = append(listeners, listener)
@@ -527,6 +530,11 @@ func TestService_BroadcastBlob(t *testing.T) {
 }
 
 func TestService_BroadcastLightClientOptimisticUpdate(t *testing.T) {
+	params.SetupTestConfigCleanup(t)
+	config := params.BeaconConfig().Copy()
+	config.SyncMessageDueBPS = 60 // ~72 millisecond
+	params.OverrideBeaconConfig(config)
+
 	p1 := p2ptest.NewTestP2P(t)
 	p2 := p2ptest.NewTestP2P(t)
 	p1.Connect(p2)
@@ -537,7 +545,7 @@ func TestService_BroadcastLightClientOptimisticUpdate(t *testing.T) {
 		pubsub:                p1.PubSub(),
 		joinedTopics:          map[string]*pubsub.Topic{},
 		cfg:                   &Config{},
-		genesisTime:           time.Now(),
+		genesisTime:           time.Now().Add(-33 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second), // the signature slot of the mock update is 33
 		genesisValidatorsRoot: bytesutil.PadTo([]byte{'A'}, 32),
 		subnetsLock:           make(map[uint64]*sync.RWMutex),
 		subnetsLockLock:       sync.Mutex{},
@@ -546,14 +554,11 @@ func TestService_BroadcastLightClientOptimisticUpdate(t *testing.T) {
 		}),
 	}
 
-	l := util.NewTestLightClient(t, version.Altair)
-	msg, err := lightClient.NewLightClientOptimisticUpdateFromBeaconState(l.Ctx, l.State, l.Block, l.AttestedState, l.AttestedBlock)
+	msg, err := util.MockOptimisticUpdate()
 	require.NoError(t, err)
 
 	GossipTypeMapping[reflect.TypeOf(msg)] = LightClientOptimisticUpdateTopicFormat
-	digest, err := forks.ForkDigestFromEpoch(slots.ToEpoch(msg.AttestedHeader().Beacon().Slot), p.genesisValidatorsRoot)
-	require.NoError(t, err)
-	topic := fmt.Sprintf(LightClientOptimisticUpdateTopicFormat, digest)
+	topic := fmt.Sprintf(LightClientOptimisticUpdateTopicFormat, params.ForkDigest(slots.ToEpoch(msg.AttestedHeader().Beacon().Slot)))
 
 	// External peer subscribes to the topic.
 	topic += p.Encoding().ProtocolSuffix()
@@ -567,11 +572,18 @@ func TestService_BroadcastLightClientOptimisticUpdate(t *testing.T) {
 	wg.Add(1)
 	go func(tt *testing.T) {
 		defer wg.Done()
-		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
 		defer cancel()
 
 		incomingMessage, err := sub.Next(ctx)
 		require.NoError(t, err)
+
+		slotStartTime, err := slots.StartTime(p.genesisTime, msg.SignatureSlot())
+		require.NoError(t, err)
+		expectedDelay := slots.ComponentDuration(primitives.BP(params.BeaconConfig().SyncMessageDueBPS))
+		if time.Now().Before(slotStartTime.Add(expectedDelay)) {
+			tt.Errorf("Message received too early, now %v, expected at least %v", time.Now(), slotStartTime.Add(expectedDelay))
+		}
 
 		result := &ethpb.LightClientOptimisticUpdateAltair{}
 		require.NoError(t, p.Encoding().DecodeGossip(incomingMessage.Data, result))
@@ -594,6 +606,11 @@ func TestService_BroadcastLightClientOptimisticUpdate(t *testing.T) {
 }
 
 func TestService_BroadcastLightClientFinalityUpdate(t *testing.T) {
+	params.SetupTestConfigCleanup(t)
+	config := params.BeaconConfig().Copy()
+	config.SyncMessageDueBPS = 60 // ~72 millisecond
+	params.OverrideBeaconConfig(config)
+
 	p1 := p2ptest.NewTestP2P(t)
 	p2 := p2ptest.NewTestP2P(t)
 	p1.Connect(p2)
@@ -604,7 +621,7 @@ func TestService_BroadcastLightClientFinalityUpdate(t *testing.T) {
 		pubsub:                p1.PubSub(),
 		joinedTopics:          map[string]*pubsub.Topic{},
 		cfg:                   &Config{},
-		genesisTime:           time.Now(),
+		genesisTime:           time.Now().Add(-33 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second), // the signature slot of the mock update is 33
 		genesisValidatorsRoot: bytesutil.PadTo([]byte{'A'}, 32),
 		subnetsLock:           make(map[uint64]*sync.RWMutex),
 		subnetsLockLock:       sync.Mutex{},
@@ -613,14 +630,11 @@ func TestService_BroadcastLightClientFinalityUpdate(t *testing.T) {
 		}),
 	}
 
-	l := util.NewTestLightClient(t, version.Altair)
-	msg, err := lightClient.NewLightClientFinalityUpdateFromBeaconState(l.Ctx, l.State, l.Block, l.AttestedState, l.AttestedBlock, l.FinalizedBlock)
+	msg, err := util.MockFinalityUpdate()
 	require.NoError(t, err)
 
 	GossipTypeMapping[reflect.TypeOf(msg)] = LightClientFinalityUpdateTopicFormat
-	digest, err := forks.ForkDigestFromEpoch(slots.ToEpoch(msg.AttestedHeader().Beacon().Slot), p.genesisValidatorsRoot)
-	require.NoError(t, err)
-	topic := fmt.Sprintf(LightClientFinalityUpdateTopicFormat, digest)
+	topic := fmt.Sprintf(LightClientFinalityUpdateTopicFormat, params.ForkDigest(slots.ToEpoch(msg.AttestedHeader().Beacon().Slot)))
 
 	// External peer subscribes to the topic.
 	topic += p.Encoding().ProtocolSuffix()
@@ -634,11 +648,18 @@ func TestService_BroadcastLightClientFinalityUpdate(t *testing.T) {
 	wg.Add(1)
 	go func(tt *testing.T) {
 		defer wg.Done()
-		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
 		defer cancel()
 
 		incomingMessage, err := sub.Next(ctx)
 		require.NoError(t, err)
+
+		slotStartTime, err := slots.StartTime(p.genesisTime, msg.SignatureSlot())
+		require.NoError(t, err)
+		expectedDelay := slots.ComponentDuration(primitives.BP(params.BeaconConfig().SyncMessageDueBPS))
+		if time.Now().Before(slotStartTime.Add(expectedDelay)) {
+			tt.Errorf("Message received too early, now %v, expected at least %v", time.Now(), slotStartTime.Add(expectedDelay))
+		}
 
 		result := &ethpb.LightClientFinalityUpdateAltair{}
 		require.NoError(t, p.Encoding().DecodeGossip(incomingMessage.Data, result))
@@ -667,6 +688,8 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 		topicFormat = DataColumnSubnetTopicFormat
 	)
 
+	ctx := t.Context()
+
 	// Load the KZG trust setup.
 	err := kzg.Start()
 	require.NoError(t, err)
@@ -689,7 +712,7 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 	_, pkey, ipAddr := createHost(t, port)
 
 	service := &Service{
-		ctx:                   t.Context(),
+		ctx:                   ctx,
 		host:                  p1.BHost,
 		pubsub:                p1.PubSub(),
 		joinedTopics:          map[string]*pubsub.Topic{},
@@ -698,7 +721,8 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 		genesisValidatorsRoot: bytesutil.PadTo([]byte{'A'}, 32),
 		subnetsLock:           make(map[uint64]*sync.RWMutex),
 		subnetsLockLock:       sync.Mutex{},
-		peers:                 peers.NewStatus(t.Context(), &peers.StatusConfig{ScorerParams: &scorers.Config{}}),
+		peers:                 peers.NewStatus(ctx, &peers.StatusConfig{ScorerParams: &scorers.Config{}}),
+		custodyInfo:           &custodyInfo{},
 	}
 
 	// Create a listener.
@@ -713,13 +737,8 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 	subnet := peerdas.ComputeSubnetForDataColumnSidecar(columnIndex)
 	topic := fmt.Sprintf(topicFormat, digest, subnet) + service.Encoding().ProtocolSuffix()
 
-	roSidecars, _ := util.CreateTestVerifiedRoDataColumnSidecars(t, []util.DataColumnParam{{Index: columnIndex}})
-	sidecar := roSidecars[0].DataColumnSidecar
-
-	// Attempt to broadcast nil object should fail.
-	var emptyRoot [fieldparams.RootLength]byte
-	err = service.BroadcastDataColumn(emptyRoot, subnet, nil)
-	require.ErrorContains(t, "attempted to broadcast nil", err)
+	_, verifiedRoSidecars := util.CreateTestVerifiedRoDataColumnSidecars(t, []util.DataColumnParam{{Index: columnIndex}})
+	verifiedRoSidecar := verifiedRoSidecars[0]
 
 	// Subscribe to the topic.
 	sub, err := p2.SubscribeToTopic(topic)
@@ -729,7 +748,7 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Broadcast to peers and wait.
-	err = service.BroadcastDataColumn(emptyRoot, subnet, sidecar)
+	err = service.BroadcastDataColumnSidecars(ctx, []blocks.VerifiedRODataColumn{verifiedRoSidecar})
 	require.NoError(t, err)
 
 	// Receive the message.
@@ -741,5 +760,5 @@ func TestService_BroadcastDataColumn(t *testing.T) {
 
 	var result ethpb.DataColumnSidecar
 	require.NoError(t, service.Encoding().DecodeGossip(msg.Data, &result))
-	require.DeepEqual(t, &result, sidecar)
+	require.DeepEqual(t, &result, verifiedRoSidecar)
 }

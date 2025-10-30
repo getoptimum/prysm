@@ -14,8 +14,10 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers/scorers"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/types"
+	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/flags"
 	"github.com/OffchainLabs/prysm/v6/config/features"
 	"github.com/OffchainLabs/prysm/v6/config/params"
+	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	leakybucket "github.com/OffchainLabs/prysm/v6/container/leaky-bucket"
 	"github.com/OffchainLabs/prysm/v6/monitoring/tracing/trace"
 	prysmnetwork "github.com/OffchainLabs/prysm/v6/network"
@@ -88,6 +90,15 @@ type Service struct {
 	genesisValidatorsRoot []byte
 	activeValidatorCount  uint64
 	peerDisconnectionTime *cache.Cache
+	custodyInfo           *custodyInfo
+	custodyInfoLock       sync.RWMutex // Lock access to custodyInfo
+	custodyInfoSet        chan struct{}
+	allForkDigests        map[[4]byte]struct{}
+}
+
+type custodyInfo struct {
+	earliestAvailableSlot primitives.Slot
+	groupCount            uint64
 }
 
 // NewService initializes a new p2p service compatible with shared.Service interface. No
@@ -96,13 +107,17 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	_ = cancel // govet fix for lost cancel. Cancel is handled in service.Stop().
 
-	cfg = validateConfig(cfg)
+	validateConfig(cfg)
+
 	privKey, err := privKey(cfg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to generate p2p private key")
 	}
 
-	metaData, err := metaDataFromConfig(cfg)
+	p2pMaxPeers.Set(float64(cfg.MaxPeers))
+	minimumPeersPerSubnet.Set(float64(flags.Get().MinimumPeersPerSubnet))
+
+	metaData, err := metaDataFromDB(ctx, cfg.DB)
 	if err != nil {
 		log.WithError(err).Error("Failed to create peer metadata")
 		return nil, err
@@ -128,6 +143,7 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		joinedTopics:          make(map[string]*pubsub.Topic, len(gossipTopicMappings)),
 		subnetsLock:           make(map[uint64]*sync.RWMutex),
 		peerDisconnectionTime: cache.New(1*time.Second, 1*time.Minute),
+		custodyInfoSet:        make(chan struct{}),
 	}
 
 	ipAddr := prysmnetwork.IPAddr()
@@ -167,7 +183,8 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 	s.pubsub = gs
 
 	s.peers = peers.NewStatus(ctx, &peers.StatusConfig{
-		PeerLimit: int(s.cfg.MaxPeers),
+		PeerLimit:             int(s.cfg.MaxPeers),
+		IPColocationWhitelist: s.cfg.IPColocationWhitelist,
 		ScorerParams: &scorers.Config{
 			BadResponsesScorerConfig: &scorers.BadResponsesScorerConfig{
 				Threshold:     maxBadResponses,
@@ -192,6 +209,7 @@ func (s *Service) Start() {
 	// Waits until the state is initialized via an event feed.
 	// Used for fork-related data when connecting peers.
 	s.awaitStateInitialized()
+	s.setAllForkDigests()
 	s.isPreGenesis = false
 
 	var relayNodes []string
@@ -445,7 +463,7 @@ func (s *Service) awaitStateInitialized() {
 	s.genesisTime = clock.GenesisTime()
 	gvr := clock.GenesisValidatorsRoot()
 	s.genesisValidatorsRoot = gvr[:]
-	_, err = s.currentForkDigest() // initialize fork digest cache
+	_, err = s.currentForkDigest()
 	if err != nil {
 		log.WithError(err).Error("Could not initialize fork digest")
 	}

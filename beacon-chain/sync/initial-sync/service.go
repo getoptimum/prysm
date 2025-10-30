@@ -12,6 +12,8 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/blockchain"
 	blockfeed "github.com/OffchainLabs/prysm/v6/beacon-chain/core/feed/block"
 	statefeed "github.com/OffchainLabs/prysm/v6/beacon-chain/core/feed/state"
+	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/helpers"
+	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/das"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db/filesystem"
@@ -53,22 +55,24 @@ type Config struct {
 	ClockWaiter         startup.ClockWaiter
 	InitialSyncComplete chan struct{}
 	BlobStorage         *filesystem.BlobStorage
+	DataColumnStorage   *filesystem.DataColumnStorage
 }
 
 // Service service.
 type Service struct {
-	cfg             *Config
-	ctx             context.Context
-	cancel          context.CancelFunc
-	synced          *abool.AtomicBool
-	chainStarted    *abool.AtomicBool
-	counter         *ratecounter.RateCounter
-	genesisChan     chan time.Time
-	clock           *startup.Clock
-	verifierWaiter  *verification.InitializerWaiter
-	newBlobVerifier verification.NewBlobVerifier
-	ctxMap          sync.ContextByteVersions
-	genesisTime     time.Time
+	cfg                    *Config
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	synced                 *abool.AtomicBool
+	chainStarted           *abool.AtomicBool
+	counter                *ratecounter.RateCounter
+	genesisChan            chan time.Time
+	clock                  *startup.Clock
+	verifierWaiter         *verification.InitializerWaiter
+	newBlobVerifier        verification.NewBlobVerifier
+	newDataColumnsVerifier verification.NewDataColumnsVerifier
+	ctxMap                 sync.ContextByteVersions
+	genesisTime            time.Time
 }
 
 // Option is a functional option for the initial-sync Service.
@@ -149,6 +153,7 @@ func (s *Service) Start() {
 		return
 	}
 	s.newBlobVerifier = newBlobVerifierFromInitializer(v)
+	s.newDataColumnsVerifier = newDataColumnsVerifierFromInitializer(v)
 
 	gt := clock.GenesisTime()
 	if gt.IsZero() {
@@ -175,19 +180,22 @@ func (s *Service) Start() {
 	}
 	s.chainStarted.Set()
 	log.Info("Starting initial chain sync...")
+
 	// Are we already in sync, or close to it?
 	if slots.ToEpoch(s.cfg.Chain.HeadSlot()) == slots.ToEpoch(currentSlot) {
 		log.Info("Already synced to the current chain head")
 		s.markSynced()
 		return
 	}
+
 	peers, err := s.waitForMinimumPeers()
 	if err != nil {
 		log.WithError(err).Error("Error waiting for minimum number of peers")
 		return
 	}
-	if err := s.fetchOriginBlobs(peers); err != nil {
-		log.WithError(err).Error("Failed to fetch missing blobs for checkpoint origin")
+
+	if err := s.fetchOriginSidecars(peers); err != nil {
+		log.WithError(err).Error("Error fetching origin sidecars")
 		return
 	}
 	if err := s.roundRobinSync(); err != nil {
@@ -198,6 +206,50 @@ func (s *Service) Start() {
 	}
 	log.WithField("slot", s.cfg.Chain.HeadSlot()).Info("Synced up to")
 	s.markSynced()
+}
+
+// fetchOriginSidecars fetches origin sidecars
+func (s *Service) fetchOriginSidecars(peers []peer.ID) error {
+	const delay = 10 * time.Second // The delay between each attempt to fetch origin data column sidecars
+
+	blockRoot, err := s.cfg.DB.OriginCheckpointBlockRoot(s.ctx)
+	if errors.Is(err, db.ErrNotFoundOriginBlockRoot) {
+		return nil
+	}
+
+	block, err := s.cfg.DB.Block(s.ctx, blockRoot)
+	if err != nil {
+		return errors.Wrap(err, "block")
+	}
+
+	currentSlot, blockSlot := s.clock.CurrentSlot(), block.Block().Slot()
+	currentEpoch, blockEpoch := slots.ToEpoch(currentSlot), slots.ToEpoch(blockSlot)
+
+	if !params.WithinDAPeriod(blockEpoch, currentEpoch) {
+		return nil
+	}
+
+	roBlock, err := blocks.NewROBlockWithRoot(block, blockRoot)
+	if err != nil {
+		return errors.Wrap(err, "new ro block with root")
+	}
+
+	blockVersion := roBlock.Version()
+
+	if blockVersion >= version.Fulu {
+		if err := s.fetchOriginDataColumnSidecars(roBlock, delay); err != nil {
+			return errors.Wrap(err, "fetch origin columns")
+		}
+		return nil
+	}
+
+	if blockVersion >= version.Deneb {
+		if err := s.fetchOriginBlobSidecars(peers, roBlock); err != nil {
+			return errors.Wrap(err, "fetch origin blobs")
+		}
+	}
+
+	return nil
 }
 
 // Stop initial sync.
@@ -304,23 +356,9 @@ func missingBlobRequest(blk blocks.ROBlock, store *filesystem.BlobStorage) (p2pt
 	return req, nil
 }
 
-func (s *Service) fetchOriginBlobs(pids []peer.ID) error {
-	r, err := s.cfg.DB.OriginCheckpointBlockRoot(s.ctx)
-	if errors.Is(err, db.ErrNotFoundOriginBlockRoot) {
-		return nil
-	}
-	blk, err := s.cfg.DB.Block(s.ctx, r)
-	if err != nil {
-		log.WithField("root", fmt.Sprintf("%#x", r)).Error("Block for checkpoint sync origin root not found in db")
-		return err
-	}
-	if !params.WithinDAPeriod(slots.ToEpoch(blk.Block().Slot()), slots.ToEpoch(s.clock.CurrentSlot())) {
-		return nil
-	}
-	rob, err := blocks.NewROBlockWithRoot(blk, r)
-	if err != nil {
-		return err
-	}
+func (s *Service) fetchOriginBlobSidecars(pids []peer.ID, rob blocks.ROBlock) error {
+	r := rob.Root()
+
 	req, err := missingBlobRequest(rob, s.cfg.BlobStorage)
 	if err != nil {
 		return err
@@ -335,16 +373,17 @@ func (s *Service) fetchOriginBlobs(pids []peer.ID) error {
 		if err != nil {
 			continue
 		}
+
 		if len(blobSidecars) != len(req) {
 			continue
 		}
 		bv := verification.NewBlobBatchVerifier(s.newBlobVerifier, verification.InitsyncBlobSidecarRequirements)
 		avs := das.NewLazilyPersistentStore(s.cfg.BlobStorage, bv)
 		current := s.clock.CurrentSlot()
-		sidecars := blocks.NewSidecarsFromBlobSidecars(blobSidecars)
-		if err := avs.Persist(current, sidecars...); err != nil {
+		if err := avs.Persist(current, blobSidecars...); err != nil {
 			return err
 		}
+
 		if err := avs.IsDataAvailable(s.ctx, current, rob); err != nil {
 			log.WithField("root", fmt.Sprintf("%#x", r)).WithField("peerID", pids[i]).Warn("Blobs from peer for origin block were unusable")
 			continue
@@ -353,6 +392,105 @@ func (s *Service) fetchOriginBlobs(pids []peer.ID) error {
 		return nil
 	}
 	return fmt.Errorf("no connected peer able to provide blobs for checkpoint sync block %#x", r)
+}
+
+func (s *Service) fetchOriginDataColumnSidecars(roBlock blocks.ROBlock, delay time.Duration) error {
+	const (
+		errorMessage     = "Failed to fetch origin data column sidecars"
+		warningIteration = 10
+	)
+
+	samplesPerSlot := params.BeaconConfig().SamplesPerSlot
+
+	// Return early if the origin block has no blob commitments.
+	commitments, err := roBlock.Block().Body().BlobKzgCommitments()
+	if err != nil {
+		return errors.Wrap(err, "fetch blob commitments")
+	}
+
+	if len(commitments) == 0 {
+		return nil
+	}
+
+	// Compute the indices we need to custody.
+	custodyGroupCount, err := s.cfg.P2P.CustodyGroupCount(s.ctx)
+	if err != nil {
+		return errors.Wrap(err, "custody group count")
+	}
+
+	samplingSize := max(custodyGroupCount, samplesPerSlot)
+	info, _, err := peerdas.Info(s.cfg.P2P.NodeID(), samplingSize)
+	if err != nil {
+		return errors.Wrap(err, "fetch peer info")
+	}
+
+	root := roBlock.Root()
+
+	log := log.WithFields(logrus.Fields{
+		"blockRoot":       fmt.Sprintf("%#x", roBlock.Root()),
+		"blobCount":       len(commitments),
+		"dataColumnCount": len(info.CustodyColumns),
+	})
+
+	// Check if some needed data column sidecars are missing.
+	stored := s.cfg.DataColumnStorage.Summary(root).Stored()
+	missing := make(map[uint64]bool, len(info.CustodyColumns))
+	for column := range info.CustodyColumns {
+		if !stored[column] {
+			missing[column] = true
+		}
+	}
+
+	if len(missing) == 0 {
+		// All needed data column sidecars are present, exit early.
+		log.Info("All needed origin data column sidecars are already present")
+
+		return nil
+	}
+
+	params := sync.DataColumnSidecarsParams{
+		Ctx:                     s.ctx,
+		Tor:                     s.clock,
+		P2P:                     s.cfg.P2P,
+		CtxMap:                  s.ctxMap,
+		Storage:                 s.cfg.DataColumnStorage,
+		NewVerifier:             s.newDataColumnsVerifier,
+		DownscorePeerOnRPCFault: true,
+	}
+
+	for attempt := uint64(0); ; attempt++ {
+		// Retrieve missing data column sidecars.
+		verifiedRoSidecarsByRoot, missingIndicesByRoot, err := sync.FetchDataColumnSidecars(params, []blocks.ROBlock{roBlock}, missing)
+		if err != nil {
+			return errors.Wrap(err, "fetch data column sidecars")
+		}
+
+		// Save retrieved data column sidecars.
+		if err := s.cfg.DataColumnStorage.Save(verifiedRoSidecarsByRoot[root]); err != nil {
+			return errors.Wrap(err, "save data column sidecars")
+		}
+
+		// Check if some needed data column sidecars are missing.
+		if len(missingIndicesByRoot) == 0 {
+			log.Info("Retrieved all needed origin data column sidecars")
+
+			return nil
+		}
+
+		// Some sidecars are still missing.
+		log := log.WithFields(logrus.Fields{
+			"attempt":        attempt,
+			"missingIndices": helpers.SortedPrettySliceFromMap(missingIndicesByRoot[root]),
+			"delay":          delay,
+		})
+
+		logFunc := log.Debug
+		if attempt > 0 && attempt%warningIteration == 0 {
+			logFunc = log.Warning
+		}
+
+		logFunc("Failed to fetch some origin data column sidecars, retrying later")
+	}
 }
 
 func shufflePeers(pids []peer.ID) {
@@ -365,5 +503,11 @@ func shufflePeers(pids []peer.ID) {
 func newBlobVerifierFromInitializer(ini *verification.Initializer) verification.NewBlobVerifier {
 	return func(b blocks.ROBlob, reqs []verification.Requirement) verification.BlobVerifier {
 		return ini.NewBlobVerifier(b, reqs)
+	}
+}
+
+func newDataColumnsVerifierFromInitializer(ini *verification.Initializer) verification.NewDataColumnsVerifier {
+	return func(roDataColumns []blocks.RODataColumn, reqs []verification.Requirement) verification.DataColumnsVerifier {
+		return ini.NewDataColumnsVerifier(roDataColumns, reqs)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,8 +26,6 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/builder"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/cache"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/cache/depositsnapshot"
-	lightclient "github.com/OffchainLabs/prysm/v6/beacon-chain/core/light-client"
-	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db/filesystem"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db/kv"
@@ -35,6 +34,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/execution"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/forkchoice"
 	doublylinkedtree "github.com/OffchainLabs/prysm/v6/beacon-chain/forkchoice/doubly-linked-tree"
+	lightclient "github.com/OffchainLabs/prysm/v6/beacon-chain/light-client"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/monitor"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/node/registration"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/attestations"
@@ -53,7 +53,6 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/sync/backfill"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/sync/backfill/coverage"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/sync/checkpoint"
-	"github.com/OffchainLabs/prysm/v6/beacon-chain/sync/genesis"
 	initialsync "github.com/OffchainLabs/prysm/v6/beacon-chain/sync/initial-sync"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/verification"
 	"github.com/OffchainLabs/prysm/v6/cmd"
@@ -62,7 +61,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/container/slice"
-	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
+	"github.com/OffchainLabs/prysm/v6/genesis"
 	"github.com/OffchainLabs/prysm/v6/monitoring/prometheus"
 	"github.com/OffchainLabs/prysm/v6/runtime"
 	"github.com/OffchainLabs/prysm/v6/runtime/prereqs"
@@ -114,7 +113,7 @@ type BeaconNode struct {
 	slasherAttestationsFeed  *event.Feed
 	finalizedStateAtStartUp  state.BeaconState
 	serviceFlagOpts          *serviceFlagOpts
-	GenesisInitializer       genesis.Initializer
+	GenesisProviders         []genesis.Provider
 	CheckpointInitializer    checkpoint.Initializer
 	forkChoicer              forkchoice.ForkChoicer
 	clockWaiter              startup.ClockWaiter
@@ -124,11 +123,11 @@ type BeaconNode struct {
 	BlobStorageOptions       []filesystem.BlobStorageOption
 	DataColumnStorage        *filesystem.DataColumnStorage
 	DataColumnStorageOptions []filesystem.DataColumnStorageOption
-	custodyInfo              *peerdas.CustodyInfo
 	verifyInitWaiter         *verification.InitializerWaiter
 	syncChecker              *initialsync.SyncChecker
 	slasherEnabled           bool
 	lcStore                  *lightclient.Store
+	ConfigOptions            []params.Option
 }
 
 // New creates a new node instance, sets up configuration options, and registers
@@ -137,18 +136,13 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 	if err := configureBeacon(cliCtx); err != nil {
 		return nil, errors.Wrap(err, "could not set beacon configuration options")
 	}
-
-	// Initializes any forks here.
-	params.BeaconConfig().InitializeForkSchedule()
-
-	registry := runtime.NewServiceRegistry()
 	ctx := cliCtx.Context
 
 	beacon := &BeaconNode{
 		cliCtx:                  cliCtx,
 		ctx:                     ctx,
 		cancel:                  cancel,
-		services:                registry,
+		services:                runtime.NewServiceRegistry(),
 		stop:                    make(chan struct{}),
 		stateFeed:               new(event.Feed),
 		blockFeed:               new(event.Feed),
@@ -166,7 +160,6 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 		serviceFlagOpts:         &serviceFlagOpts{},
 		initialSyncComplete:     make(chan struct{}),
 		syncChecker:             &initialsync.SyncChecker{},
-		custodyInfo:             &peerdas.CustodyInfo{},
 		slasherEnabled:          cliCtx.Bool(flags.SlasherFlag.Name),
 	}
 
@@ -175,6 +168,28 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 			return nil, err
 		}
 	}
+
+	dbClearer := newDbClearer(cliCtx)
+	dataDir := cliCtx.String(cmd.DataDirFlag.Name)
+	boltFname := filepath.Join(dataDir, kv.BeaconNodeDbDirName)
+	kvdb, err := openDB(ctx, boltFname, dbClearer)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not open database")
+	}
+	beacon.db = kvdb
+
+	if err := dbClearer.clearGenesis(dataDir); err != nil {
+		return nil, errors.Wrap(err, "could not clear genesis state")
+	}
+	providers := append(beacon.GenesisProviders, kv.NewLegacyGenesisProvider(kvdb))
+	if err := genesis.Initialize(ctx, dataDir, providers...); err != nil {
+		return nil, errors.Wrap(err, "could not initialize genesis state")
+	}
+
+	beacon.ConfigOptions = append([]params.Option{params.WithGenesisValidatorsRoot(genesis.ValidatorsRoot())}, beacon.ConfigOptions...)
+	params.BeaconConfig().ApplyOptions(beacon.ConfigOptions...)
+	params.BeaconConfig().InitializeForkSchedule()
+	params.LogDigests(params.BeaconConfig())
 
 	synchronizer := startup.NewClockSynchronizer()
 	beacon.clockWaiter = synchronizer
@@ -194,6 +209,9 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 		}
 		beacon.BlobStorage = blobs
 	}
+	if err := dbClearer.clearBlobs(beacon.BlobStorage); err != nil {
+		return nil, errors.Wrap(err, "could not clear blob storage")
+	}
 
 	if beacon.DataColumnStorage == nil {
 		dataColumnStorage, err := filesystem.NewDataColumnStorage(cliCtx.Context, beacon.DataColumnStorageOptions...)
@@ -203,8 +221,11 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 
 		beacon.DataColumnStorage = dataColumnStorage
 	}
+	if err := dbClearer.clearColumns(beacon.DataColumnStorage); err != nil {
+		return nil, errors.Wrap(err, "could not clear data column storage")
+	}
 
-	bfs, err := startBaseServices(cliCtx, beacon, depositAddress)
+	bfs, err := startBaseServices(cliCtx, beacon, depositAddress, dbClearer)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not start modules")
 	}
@@ -234,10 +255,6 @@ func New(cliCtx *cli.Context, cancel context.CancelFunc, opts ...Option) (*Beaco
 	// Do not store the finalized state as it has been provided to the respective services during
 	// their initialization.
 	beacon.finalizedStateAtStartUp = nil
-
-	if features.Get().EnableLightClient {
-		beacon.lcStore = lightclient.NewLightClientStore(beacon.db)
-	}
 
 	return beacon, nil
 }
@@ -292,7 +309,7 @@ func configureBeacon(cliCtx *cli.Context) error {
 	return nil
 }
 
-func startBaseServices(cliCtx *cli.Context, beacon *BeaconNode, depositAddress string) (*backfill.Store, error) {
+func startBaseServices(cliCtx *cli.Context, beacon *BeaconNode, depositAddress string, clearer *dbClearer) (*backfill.Store, error) {
 	ctx := cliCtx.Context
 	log.Debugln("Starting DB")
 	if err := beacon.startDB(cliCtx, depositAddress); err != nil {
@@ -300,9 +317,10 @@ func startBaseServices(cliCtx *cli.Context, beacon *BeaconNode, depositAddress s
 	}
 
 	beacon.BlobStorage.WarmCache()
+	beacon.DataColumnStorage.WarmCache()
 
 	log.Debugln("Starting Slashing DB")
-	if err := beacon.startSlasherDB(cliCtx); err != nil {
+	if err := beacon.startSlasherDB(cliCtx, clearer); err != nil {
 		return nil, errors.Wrap(err, "could not start slashing DB")
 	}
 
@@ -328,6 +346,11 @@ func registerServices(cliCtx *cli.Context, beacon *BeaconNode, synchronizer *sta
 	log.Debugln("Registering P2P Service")
 	if err := beacon.registerP2P(cliCtx); err != nil {
 		return errors.Wrap(err, "could not register P2P service")
+	}
+
+	if features.Get().EnableLightClient {
+		log.Debugln("Registering Light Client Store")
+		beacon.registerLightClientStore()
 	}
 
 	log.Debugln("Registering Backfill Service")
@@ -482,43 +505,6 @@ func (b *BeaconNode) Close() {
 	close(b.stop)
 }
 
-func (b *BeaconNode) clearDB(clearDB, forceClearDB bool, d *kv.Store, dbPath string) (*kv.Store, error) {
-	var err error
-	clearDBConfirmed := false
-
-	if clearDB && !forceClearDB {
-		const (
-			actionText = "This will delete your beacon chain database stored in your data directory. " +
-				"Your database backups will not be removed - do you want to proceed? (Y/N)"
-
-			deniedText = "Database will not be deleted. No changes have been made."
-		)
-
-		clearDBConfirmed, err = cmd.ConfirmAction(actionText, deniedText)
-		if err != nil {
-			return nil, errors.Wrapf(err, "could not confirm action")
-		}
-	}
-
-	if clearDBConfirmed || forceClearDB {
-		log.Warning("Removing database")
-		if err := d.ClearDB(); err != nil {
-			return nil, errors.Wrap(err, "could not clear database")
-		}
-
-		if err := b.BlobStorage.Clear(); err != nil {
-			return nil, errors.Wrap(err, "could not clear blob storage")
-		}
-
-		d, err = kv.NewKVStore(b.ctx, dbPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "could not create new database")
-		}
-	}
-
-	return d, nil
-}
-
 func (b *BeaconNode) checkAndSaveDepositContract(depositAddress string) error {
 	knownContract, err := b.db.DepositContractAddress(b.ctx)
 	if err != nil {
@@ -542,52 +528,28 @@ func (b *BeaconNode) checkAndSaveDepositContract(depositAddress string) error {
 	return nil
 }
 
-func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
-	var depositCache cache.DepositCache
-
-	baseDir := cliCtx.String(cmd.DataDirFlag.Name)
-	dbPath := filepath.Join(baseDir, kv.BeaconNodeDbDirName)
-	clearDBRequired := cliCtx.Bool(cmd.ClearDB.Name)
-	forceClearDBRequired := cliCtx.Bool(cmd.ForceClearDB.Name)
-
+func openDB(ctx context.Context, dbPath string, clearer *dbClearer) (*kv.Store, error) {
 	log.WithField("databasePath", dbPath).Info("Checking DB")
 
-	d, err := kv.NewKVStore(b.ctx, dbPath)
+	d, err := kv.NewKVStore(ctx, dbPath)
 	if err != nil {
-		return errors.Wrapf(err, "could not create database at %s", dbPath)
+		return nil, errors.Wrapf(err, "could not create database at %s", dbPath)
 	}
 
-	if clearDBRequired || forceClearDBRequired {
-		d, err = b.clearDB(clearDBRequired, forceClearDBRequired, d, dbPath)
-		if err != nil {
-			return errors.Wrap(err, "could not clear database")
-		}
+	d, err = clearer.clearKV(ctx, d)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not clear database")
 	}
 
-	if err := d.RunMigrations(b.ctx); err != nil {
-		return err
-	}
+	return d, d.RunMigrations(ctx)
+}
 
-	b.db = d
-
-	depositCache, err = depositsnapshot.New()
+func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
+	depositCache, err := depositsnapshot.New()
 	if err != nil {
 		return errors.Wrap(err, "could not create deposit cache")
 	}
-
 	b.depositCache = depositCache
-
-	if b.GenesisInitializer != nil {
-		if err := b.GenesisInitializer.Initialize(b.ctx, d); err != nil {
-			if errors.Is(err, db.ErrExistingGenesisState) {
-				return errors.Errorf("Genesis state flag specified but a genesis state "+
-					"exists already. Run again with --%s and/or ensure you are using the "+
-					"appropriate testnet flag to load the given genesis state.", cmd.ClearDB.Name)
-			}
-
-			return errors.Wrap(err, "could not load genesis from file")
-		}
-	}
 
 	if err := b.db.EnsureEmbeddedGenesis(b.ctx); err != nil {
 		return errors.Wrap(err, "could not ensure embedded genesis")
@@ -595,7 +557,7 @@ func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
 
 	if b.CheckpointInitializer != nil {
 		log.Info("Checkpoint sync - Downloading origin state and block")
-		if err := b.CheckpointInitializer.Initialize(b.ctx, d); err != nil {
+		if err := b.CheckpointInitializer.Initialize(b.ctx, b.db); err != nil {
 			return err
 		}
 	}
@@ -607,49 +569,25 @@ func (b *BeaconNode) startDB(cliCtx *cli.Context, depositAddress string) error {
 	log.WithField("address", depositAddress).Info("Deposit contract")
 	return nil
 }
-
-func (b *BeaconNode) startSlasherDB(cliCtx *cli.Context) error {
+func (b *BeaconNode) startSlasherDB(cliCtx *cli.Context, clearer *dbClearer) error {
 	if !b.slasherEnabled {
 		return nil
 	}
 	baseDir := cliCtx.String(cmd.DataDirFlag.Name)
-
 	if cliCtx.IsSet(flags.SlasherDirFlag.Name) {
 		baseDir = cliCtx.String(flags.SlasherDirFlag.Name)
 	}
 
 	dbPath := filepath.Join(baseDir, kv.BeaconNodeDbDirName)
-	clearDB := cliCtx.Bool(cmd.ClearDB.Name)
-	forceClearDB := cliCtx.Bool(cmd.ForceClearDB.Name)
-
 	log.WithField("databasePath", dbPath).Info("Checking DB")
-
 	d, err := slasherkv.NewKVStore(b.ctx, dbPath)
 	if err != nil {
 		return err
 	}
-	clearDBConfirmed := false
-	if clearDB && !forceClearDB {
-		actionText := "This will delete your beacon chain database stored in your data directory. " +
-			"Your database backups will not be removed - do you want to proceed? (Y/N)"
-		deniedText := "Database will not be deleted. No changes have been made."
-		clearDBConfirmed, err = cmd.ConfirmAction(actionText, deniedText)
-		if err != nil {
-			return err
-		}
+	d, err = clearer.clearSlasher(b.ctx, d)
+	if err != nil {
+		return errors.Wrap(err, "could not clear slasher database")
 	}
-	if clearDBConfirmed || forceClearDB {
-		log.Warning("Removing database")
-		if err := d.ClearDB(); err != nil {
-			return errors.Wrap(err, "could not clear database")
-		}
-
-		d, err = slasherkv.NewKVStore(b.ctx, dbPath)
-		if err != nil {
-			return errors.Wrap(err, "could not create new database")
-		}
-	}
-
 	b.slasherDB = d
 	return nil
 }
@@ -663,22 +601,7 @@ func (b *BeaconNode) startStateGen(ctx context.Context, bfs coverage.AvailableBl
 		return err
 	}
 
-	r := bytesutil.ToBytes32(cp.Root)
-	// Consider edge case where finalized root are zeros instead of genesis root hash.
-	if r == params.BeaconConfig().ZeroHash {
-		genesisBlock, err := b.db.GenesisBlock(ctx)
-		if err != nil {
-			return err
-		}
-		if genesisBlock != nil && !genesisBlock.IsNil() {
-			r, err = genesisBlock.Block().HashTreeRoot()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	b.finalizedStateAtStartUp, err = sg.StateByRoot(ctx, r)
+	b.finalizedStateAtStartUp, err = sg.StateByRoot(ctx, [32]byte(cp.Root))
 	if err != nil {
 		return err
 	}
@@ -687,37 +610,55 @@ func (b *BeaconNode) startStateGen(ctx context.Context, bfs coverage.AvailableBl
 	return nil
 }
 
+func parseIPNetStrings(ipWhitelist []string) ([]*net.IPNet, error) {
+	ipNets := make([]*net.IPNet, 0, len(ipWhitelist))
+	for _, cidr := range ipWhitelist {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			log.WithError(err).WithField("cidr", cidr).Error("Invalid CIDR in IP colocation whitelist")
+			return nil, err
+		}
+		ipNets = append(ipNets, ipNet)
+		log.WithField("cidr", cidr).Info("Added IP to colocation whitelist")
+	}
+	return ipNets, nil
+}
+
 func (b *BeaconNode) registerP2P(cliCtx *cli.Context) error {
 	bootstrapNodeAddrs, dataDir, err := registration.P2PPreregistration(cliCtx)
 	if err != nil {
 		return errors.Wrapf(err, "could not register p2p service")
 	}
 
+	colocationWhitelist, err := parseIPNetStrings(slice.SplitCommaSeparated(cliCtx.StringSlice(cmd.P2PColocationWhitelist.Name)))
+	if err != nil {
+		return fmt.Errorf("failed to register p2p service: %w", err)
+	}
+
 	svc, err := p2p.NewService(b.ctx, &p2p.Config{
-		NoDiscovery:          cliCtx.Bool(cmd.NoDiscovery.Name),
-		StaticPeers:          slice.SplitCommaSeparated(cliCtx.StringSlice(cmd.StaticPeers.Name)),
-		Discv5BootStrapAddrs: p2p.ParseBootStrapAddrs(bootstrapNodeAddrs),
-		RelayNodeAddr:        cliCtx.String(cmd.RelayNode.Name),
-		DataDir:              dataDir,
-		DiscoveryDir:         filepath.Join(dataDir, "discovery"),
-		LocalIP:              cliCtx.String(cmd.P2PIP.Name),
-		HostAddress:          cliCtx.String(cmd.P2PHost.Name),
-		HostDNS:              cliCtx.String(cmd.P2PHostDNS.Name),
-		PrivateKey:           cliCtx.String(cmd.P2PPrivKey.Name),
-		StaticPeerID:         cliCtx.Bool(cmd.P2PStaticID.Name),
-		MetaDataDir:          cliCtx.String(cmd.P2PMetadata.Name),
-		QUICPort:             cliCtx.Uint(cmd.P2PQUICPort.Name),
-		TCPPort:              cliCtx.Uint(cmd.P2PTCPPort.Name),
-		UDPPort:              cliCtx.Uint(cmd.P2PUDPPort.Name),
-		MaxPeers:             cliCtx.Uint(cmd.P2PMaxPeers.Name),
-		QueueSize:            cliCtx.Uint(cmd.PubsubQueueSize.Name),
-		AllowListCIDR:        cliCtx.String(cmd.P2PAllowList.Name),
-		DenyListCIDR:         slice.SplitCommaSeparated(cliCtx.StringSlice(cmd.P2PDenyList.Name)),
-		EnableUPnP:           cliCtx.Bool(cmd.EnableUPnPFlag.Name),
-		StateNotifier:        b,
-		DB:                   b.db,
-		ClockWaiter:          b.clockWaiter,
-		CustodyInfo:          b.custodyInfo,
+		NoDiscovery:           cliCtx.Bool(cmd.NoDiscovery.Name),
+		StaticPeers:           slice.SplitCommaSeparated(cliCtx.StringSlice(cmd.StaticPeers.Name)),
+		Discv5BootStrapAddrs:  p2p.ParseBootStrapAddrs(bootstrapNodeAddrs),
+		RelayNodeAddr:         cliCtx.String(cmd.RelayNode.Name),
+		DataDir:               dataDir,
+		DiscoveryDir:          filepath.Join(dataDir, "discovery"),
+		LocalIP:               cliCtx.String(cmd.P2PIP.Name),
+		HostAddress:           cliCtx.String(cmd.P2PHost.Name),
+		HostDNS:               cliCtx.String(cmd.P2PHostDNS.Name),
+		PrivateKey:            cliCtx.String(cmd.P2PPrivKey.Name),
+		StaticPeerID:          cliCtx.Bool(cmd.P2PStaticID.Name),
+		QUICPort:              cliCtx.Uint(cmd.P2PQUICPort.Name),
+		TCPPort:               cliCtx.Uint(cmd.P2PTCPPort.Name),
+		UDPPort:               cliCtx.Uint(cmd.P2PUDPPort.Name),
+		MaxPeers:              cliCtx.Uint(cmd.P2PMaxPeers.Name),
+		QueueSize:             cliCtx.Uint(cmd.PubsubQueueSize.Name),
+		AllowListCIDR:         cliCtx.String(cmd.P2PAllowList.Name),
+		DenyListCIDR:          slice.SplitCommaSeparated(cliCtx.StringSlice(cmd.P2PDenyList.Name)),
+		IPColocationWhitelist: colocationWhitelist,
+		EnableUPnP:            cliCtx.Bool(cmd.EnableUPnPFlag.Name),
+		StateNotifier:         b,
+		DB:                    b.db,
+		ClockWaiter:           b.clockWaiter,
 	})
 	if err != nil {
 		return err
@@ -800,7 +741,6 @@ func (b *BeaconNode) registerBlockchainService(fc forkchoice.ForkChoicer, gs *st
 		blockchain.WithTrackedValidatorsCache(b.trackedValidatorsCache),
 		blockchain.WithPayloadIDCache(b.payloadIDCache),
 		blockchain.WithSyncChecker(b.syncChecker),
-		blockchain.WithCustodyInfo(b.custodyInfo),
 		blockchain.WithSlasherEnabled(b.slasherEnabled),
 		blockchain.WithLightClientStore(b.lcStore),
 	)
@@ -888,7 +828,7 @@ func (b *BeaconNode) registerSyncService(initialSyncComplete chan struct{}, bFil
 		regularsync.WithDataColumnStorage(b.DataColumnStorage),
 		regularsync.WithVerifierWaiter(b.verifyInitWaiter),
 		regularsync.WithAvailableBlocker(bFillStore),
-		regularsync.WithCustodyInfo(b.custodyInfo),
+		regularsync.WithTrackedValidatorsCache(b.trackedValidatorsCache),
 		regularsync.WithSlasherEnabled(b.slasherEnabled),
 		regularsync.WithLightClientStore(b.lcStore),
 		regularsync.WithBatchVerifierLimit(b.cliCtx.Int(flags.BatchVerifierLimit.Name)),
@@ -915,6 +855,7 @@ func (b *BeaconNode) registerInitialSyncService(complete chan struct{}) error {
 		ClockWaiter:         b.clockWaiter,
 		InitialSyncComplete: complete,
 		BlobStorage:         b.BlobStorage,
+		DataColumnStorage:   b.DataColumnStorage,
 	}, opts...)
 	return b.services.RegisterService(is)
 }
@@ -1009,6 +950,7 @@ func (b *BeaconNode) registerRPCService(router *http.ServeMux) error {
 		FinalizationFetcher:       chainService,
 		BlockReceiver:             chainService,
 		BlobReceiver:              chainService,
+		DataColumnReceiver:        chainService,
 		AttestationReceiver:       chainService,
 		GenesisTimeFetcher:        chainService,
 		GenesisFetcher:            chainService,
@@ -1036,6 +978,7 @@ func (b *BeaconNode) registerRPCService(router *http.ServeMux) error {
 		Router:                    router,
 		ClockWaiter:               b.clockWaiter,
 		BlobStorage:               b.BlobStorage,
+		DataColumnStorage:         b.DataColumnStorage,
 		TrackedValidatorsCache:    b.trackedValidatorsCache,
 		PayloadIDCache:            b.payloadIDCache,
 		LCStore:                   b.lcStore,
@@ -1166,6 +1109,7 @@ func (b *BeaconNode) registerPrunerService(cliCtx *cli.Context) error {
 		genesis,
 		initSyncWaiter(cliCtx.Context, b.initialSyncComplete),
 		backfillService.WaitForCompletion,
+		b.fetchP2P(),
 		opts...,
 	)
 	if err != nil {
@@ -1185,12 +1129,15 @@ func (b *BeaconNode) RegisterBackfillService(cliCtx *cli.Context, bfs *backfill.
 	return b.services.RegisterService(bf)
 }
 
+func (b *BeaconNode) registerLightClientStore() {
+	lcs := lightclient.NewLightClientStore(b.fetchP2P(), b.StateFeed(), b.db)
+	b.lcStore = lcs
+}
+
 func hasNetworkFlag(cliCtx *cli.Context) bool {
 	for _, flag := range features.NetworkFlags {
-		for _, name := range flag.Names() {
-			if cliCtx.IsSet(name) {
-				return true
-			}
+		if slices.ContainsFunc(flag.Names(), cliCtx.IsSet) {
+			return true
 		}
 	}
 	return false

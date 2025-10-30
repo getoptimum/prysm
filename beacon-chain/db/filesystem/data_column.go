@@ -100,6 +100,14 @@ type (
 	}
 )
 
+// DataColumnStorageReader is an interface to read data column sidecars from the filesystem.
+type DataColumnStorageReader interface {
+	Summary(root [fieldparams.RootLength]byte) DataColumnStorageSummary
+	Get(root [fieldparams.RootLength]byte, indices []uint64) ([]blocks.VerifiedRODataColumn, error)
+}
+
+var _ DataColumnStorageReader = &DataColumnStorage{}
+
 // WithDataColumnBasePath is a required option that sets the base path of data column storage.
 func WithDataColumnBasePath(base string) DataColumnStorageOption {
 	return func(b *DataColumnStorage) error {
@@ -192,6 +200,7 @@ func (dcs *DataColumnStorage) WarmCache() {
 		fileMetadata, err := extractFileMetadata(path)
 		if err != nil {
 			log.WithError(err).Error("Error encountered while extracting file metadata")
+			return nil
 		}
 
 		// Open the data column filesystem file.
@@ -251,7 +260,6 @@ func (dcs *DataColumnStorage) Summary(root [fieldparams.RootLength]byte) DataCol
 }
 
 // Save saves data column sidecars into the database and asynchronously performs pruning.
-// The returned channel is closed when the pruning is complete.
 func (dcs *DataColumnStorage) Save(dataColumnSidecars []blocks.VerifiedRODataColumn) error {
 	startTime := time.Now()
 
@@ -981,8 +989,8 @@ func filePath(root [fieldparams.RootLength]byte, epoch primitives.Epoch) string 
 // extractFileMetadata extracts the metadata from a file path.
 // If the path is not a leaf, it returns nil.
 func extractFileMetadata(path string) (*fileMetadata, error) {
-	// Is this Windows friendly?
-	parts := strings.Split(path, "/")
+	// Use filepath.Separator to handle both Windows (\) and Unix (/) path separators
+	parts := strings.Split(path, string(filepath.Separator))
 	if len(parts) != 3 {
 		return nil, errors.Errorf("unexpected file %s", path)
 	}
@@ -1025,5 +1033,5 @@ func extractFileMetadata(path string) (*fileMetadata, error) {
 
 // period computes the period of a given epoch.
 func period(epoch primitives.Epoch) uint64 {
-	return uint64(epoch / params.BeaconConfig().MinEpochsForBlobsSidecarsRequest)
+	return uint64(epoch / params.BeaconConfig().MinEpochsForDataColumnSidecarsRequest)
 }

@@ -30,10 +30,11 @@ import (
 )
 
 const (
-	getExecHeaderPath          = "/eth/v1/builder/header/{{.Slot}}/{{.ParentHash}}/{{.Pubkey}}"
-	getStatus                  = "/eth/v1/builder/status"
-	postBlindedBeaconBlockPath = "/eth/v1/builder/blinded_blocks"
-	postRegisterValidatorPath  = "/eth/v1/builder/validators"
+	getExecHeaderPath            = "/eth/v1/builder/header/{{.Slot}}/{{.ParentHash}}/{{.Pubkey}}"
+	getStatus                    = "/eth/v1/builder/status"
+	postBlindedBeaconBlockPath   = "/eth/v1/builder/blinded_blocks"
+	postBlindedBeaconBlockV2Path = "/eth/v2/builder/blinded_blocks"
+	postRegisterValidatorPath    = "/eth/v1/builder/validators"
 )
 
 var (
@@ -102,6 +103,7 @@ type BuilderClient interface {
 	GetHeader(ctx context.Context, slot primitives.Slot, parentHash [32]byte, pubkey [48]byte) (SignedBid, error)
 	RegisterValidator(ctx context.Context, svr []*ethpb.SignedValidatorRegistrationV1) error
 	SubmitBlindedBlock(ctx context.Context, sb interfaces.ReadOnlySignedBeaconBlock) (interfaces.ExecutionData, v1.BlobsBundler, error)
+	SubmitBlindedBlockPostFulu(ctx context.Context, sb interfaces.ReadOnlySignedBeaconBlock) error
 	Status(ctx context.Context) error
 }
 
@@ -152,7 +154,8 @@ func (c *Client) NodeURL() string {
 type reqOption func(*http.Request)
 
 // do is a generic, opinionated request function to reduce boilerplate amongst the methods in this package api/client/builder.
-func (c *Client) do(ctx context.Context, method string, path string, body io.Reader, opts ...reqOption) (res []byte, header http.Header, err error) {
+// It validates that the HTTP response status matches the expectedStatus parameter.
+func (c *Client) do(ctx context.Context, method string, path string, body io.Reader, expectedStatus int, opts ...reqOption) (res []byte, header http.Header, err error) {
 	ctx, span := trace.StartSpan(ctx, "builder.client.do")
 	defer func() {
 		tracing.AnnotateError(span, err)
@@ -187,8 +190,8 @@ func (c *Client) do(ctx context.Context, method string, path string, body io.Rea
 			log.WithError(closeErr).Error("Failed to close response body")
 		}
 	}()
-	if r.StatusCode != http.StatusOK {
-		err = non200Err(r)
+	if r.StatusCode != expectedStatus {
+		err = unexpectedStatusErr(r, expectedStatus)
 		return
 	}
 	res, err = io.ReadAll(io.LimitReader(r.Body, client.MaxBodySize))
@@ -236,7 +239,7 @@ func (c *Client) GetHeader(ctx context.Context, slot primitives.Slot, parentHash
 			r.Header.Set("Accept", api.JsonMediaType)
 		}
 	}
-	data, header, err := c.do(ctx, http.MethodGet, path, nil, getOpts)
+	data, header, err := c.do(ctx, http.MethodGet, path, nil, http.StatusOK, getOpts)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting header from builder server")
 	}
@@ -409,7 +412,7 @@ func (c *Client) RegisterValidator(ctx context.Context, svr []*ethpb.SignedValid
 		}
 	}
 
-	if _, _, err = c.do(ctx, http.MethodPost, postRegisterValidatorPath, bytes.NewBuffer(body), postOpts); err != nil {
+	if _, _, err = c.do(ctx, http.MethodPost, postRegisterValidatorPath, bytes.NewBuffer(body), http.StatusOK, postOpts); err != nil {
 		return errors.Wrap(err, "do")
 	}
 	log.WithField("registrationCount", len(svr)).Debug("Successfully registered validator(s) on builder")
@@ -471,7 +474,7 @@ func (c *Client) SubmitBlindedBlock(ctx context.Context, sb interfaces.ReadOnlyS
 
 	// post the blinded block - the execution payload response should contain the unblinded payload, along with the
 	// blobs bundle if it is post deneb.
-	data, header, err := c.do(ctx, http.MethodPost, postBlindedBeaconBlockPath, bytes.NewBuffer(body), postOpts)
+	data, header, err := c.do(ctx, http.MethodPost, postBlindedBeaconBlockPath, bytes.NewBuffer(body), http.StatusOK, postOpts)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error posting the blinded block to the builder api")
 	}
@@ -499,6 +502,24 @@ func (c *Client) SubmitBlindedBlock(ctx context.Context, sb interfaces.ReadOnlyS
 	}
 
 	return ed, blobs, nil
+}
+
+// SubmitBlindedBlockPostFulu calls the builder API endpoint post-Fulu where relays only return status codes.
+// This method is used after the Fulu fork when MEV-boost relays no longer return execution payloads.
+func (c *Client) SubmitBlindedBlockPostFulu(ctx context.Context, sb interfaces.ReadOnlySignedBeaconBlock) error {
+	body, postOpts, err := c.buildBlindedBlockRequest(sb)
+	if err != nil {
+		return err
+	}
+
+	// Post the blinded block - the response should only contain a status code (no payload)
+	_, _, err = c.do(ctx, http.MethodPost, postBlindedBeaconBlockV2Path, bytes.NewBuffer(body), http.StatusAccepted, postOpts)
+	if err != nil {
+		return errors.Wrap(err, "error posting the blinded block to the builder api post-Fulu")
+	}
+
+	// Success is indicated by no error (status 202)
+	return nil
 }
 
 func (c *Client) checkBlockVersion(respBytes []byte, header http.Header) (int, error) {
@@ -657,11 +678,11 @@ func (c *Client) Status(ctx context.Context) error {
 	getOpts := func(r *http.Request) {
 		r.Header.Set("Accept", api.JsonMediaType)
 	}
-	_, _, err := c.do(ctx, http.MethodGet, getStatus, nil, getOpts)
+	_, _, err := c.do(ctx, http.MethodGet, getStatus, nil, http.StatusOK, getOpts)
 	return err
 }
 
-func non200Err(response *http.Response) error {
+func unexpectedStatusErr(response *http.Response, expected int) error {
 	bodyBytes, err := io.ReadAll(io.LimitReader(response.Body, client.MaxErrBodySize))
 	var errMessage ErrorMessage
 	var body string
@@ -670,7 +691,7 @@ func non200Err(response *http.Response) error {
 	} else {
 		body = "response body:\n" + string(bodyBytes)
 	}
-	msg := fmt.Sprintf("code=%d, url=%s, body=%s", response.StatusCode, response.Request.URL, body)
+	msg := fmt.Sprintf("expected=%d, got=%d, url=%s, body=%s", expected, response.StatusCode, response.Request.URL, body)
 	switch response.StatusCode {
 	case http.StatusUnsupportedMediaType:
 		log.WithError(ErrUnsupportedMediaType).Debug(msg)
@@ -705,6 +726,12 @@ func non200Err(response *http.Response) error {
 			return errors.Wrap(jsonErr, "unable to read response body")
 		}
 		return errors.Wrap(ErrNotOK, errMessage.Message)
+	case http.StatusBadGateway:
+		log.WithError(ErrBadGateway).Debug(msg)
+		if jsonErr := json.Unmarshal(bodyBytes, &errMessage); jsonErr != nil {
+			return errors.Wrap(jsonErr, "unable to read response body")
+		}
+		return errors.Wrap(ErrBadGateway, errMessage.Message)
 	default:
 		log.WithError(ErrNotOK).Debug(msg)
 		return errors.Wrap(ErrNotOK, fmt.Sprintf("unsupported error code: %d", response.StatusCode))

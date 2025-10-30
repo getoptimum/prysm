@@ -56,7 +56,7 @@ func (s *Server) GetStateRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	isOptimistic, err := helpers.IsOptimistic(ctx, []byte(stateId), s.OptimisticModeFetcher, s.Stater, s.ChainInfoFetcher, s.BeaconDB)
 	if err != nil {
-		httputil.HandleError(w, "Could not check optimistic status: "+err.Error(), http.StatusInternalServerError)
+		helpers.HandleIsOptimisticError(w, err)
 		return
 	}
 	blockRoot, err := st.LatestBlockHeader().HashTreeRoot()
@@ -109,10 +109,10 @@ func (s *Server) GetRandao(w http.ResponseWriter, r *http.Request) {
 	// future epochs and epochs too far back are not supported.
 	randaoEpochLowerBound := uint64(0)
 	// Lower bound should not underflow.
-	if uint64(stEpoch) > uint64(st.RandaoMixesLength()) {
-		randaoEpochLowerBound = uint64(stEpoch) - uint64(st.RandaoMixesLength())
+	if uint64(stEpoch) >= uint64(st.RandaoMixesLength()) {
+		randaoEpochLowerBound = uint64(stEpoch) - uint64(st.RandaoMixesLength()) + 1
 	}
-	if epoch > stEpoch || uint64(epoch) < randaoEpochLowerBound+1 {
+	if epoch > stEpoch || (uint64(epoch) < randaoEpochLowerBound) {
 		httputil.HandleError(w, "Epoch is out of range for the randao mixes of the state", http.StatusBadRequest)
 		return
 	}
@@ -125,7 +125,7 @@ func (s *Server) GetRandao(w http.ResponseWriter, r *http.Request) {
 
 	isOptimistic, err := helpers.IsOptimistic(ctx, []byte(stateId), s.OptimisticModeFetcher, s.Stater, s.ChainInfoFetcher, s.BeaconDB)
 	if err != nil {
-		httputil.HandleError(w, "Could not check optimistic status: "+err.Error(), http.StatusInternalServerError)
+		helpers.HandleIsOptimisticError(w, err)
 		return
 	}
 
@@ -227,7 +227,7 @@ func (s *Server) GetSyncCommittees(w http.ResponseWriter, r *http.Request) {
 
 	isOptimistic, err := helpers.IsOptimistic(ctx, []byte(stateId), s.OptimisticModeFetcher, s.Stater, s.ChainInfoFetcher, s.BeaconDB)
 	if err != nil {
-		httputil.HandleError(w, "Could not check optimistic status: "+err.Error(), http.StatusInternalServerError)
+		helpers.HandleIsOptimisticError(w, err)
 		return
 	}
 

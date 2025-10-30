@@ -394,7 +394,7 @@ func TestRequestPendingBlobs(t *testing.T) {
 		}
 		p1.Peers().Add(new(enr.Record), p2.PeerID(), nil, network.DirOutbound)
 		p1.Peers().SetConnectionState(p2.PeerID(), peers.Connected)
-		p1.Peers().SetChainState(p2.PeerID(), &ethpb.Status{FinalizedEpoch: 1})
+		p1.Peers().SetChainState(p2.PeerID(), &ethpb.StatusV2{FinalizedEpoch: 1})
 		s := &Service{
 			cfg: &config{
 				p2p:         p1,
@@ -415,6 +415,7 @@ func TestRequestPendingBlobs(t *testing.T) {
 }
 
 func TestConstructPendingBlobsRequest(t *testing.T) {
+	ds := util.SlotAtEpoch(t, params.BeaconConfig().DenebForkEpoch)
 	d := db.SetupDB(t)
 	bs := filesystem.NewEphemeralBlobStorage(t)
 	s := &Service{cfg: &config{beaconDB: d, blobStorage: bs}}
@@ -436,6 +437,7 @@ func TestConstructPendingBlobsRequest(t *testing.T) {
 			ParentRoot: bytesutil.PadTo([]byte{}, 32),
 			StateRoot:  bytesutil.PadTo([]byte{}, 32),
 			BodyRoot:   bytesutil.PadTo([]byte{}, 32),
+			Slot:       ds,
 		},
 		Signature: bytesutil.PadTo([]byte{}, 96),
 	}

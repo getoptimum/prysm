@@ -9,19 +9,6 @@ import (
 	"sync"
 	"time"
 
-	lightClient "github.com/OffchainLabs/prysm/v6/beacon-chain/core/light-client"
-	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
-	p2ptypes "github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/types"
-	"github.com/OffchainLabs/prysm/v6/crypto/rand"
-	lru "github.com/hashicorp/golang-lru"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	libp2pcore "github.com/libp2p/go-libp2p/core"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
-	gcache "github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
-	"github.com/trailofbits/go-mutexasserts"
-
 	"github.com/OffchainLabs/prysm/v6/async"
 	"github.com/OffchainLabs/prysm/v6/async/abool"
 	"github.com/OffchainLabs/prysm/v6/async/event"
@@ -33,12 +20,14 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/db/filesystem"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/execution"
+	lightClient "github.com/OffchainLabs/prysm/v6/beacon-chain/light-client"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/attestations"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/blstoexec"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/slashings"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/synccommittee"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/voluntaryexits"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p"
+	p2ptypes "github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/types"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/startup"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/state/stategen"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/sync/backfill/coverage"
@@ -48,11 +37,20 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/blocks"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
 	leakybucket "github.com/OffchainLabs/prysm/v6/container/leaky-bucket"
-	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
+	"github.com/OffchainLabs/prysm/v6/crypto/rand"
 	"github.com/OffchainLabs/prysm/v6/runtime"
 	prysmTime "github.com/OffchainLabs/prysm/v6/time"
 	"github.com/OffchainLabs/prysm/v6/time/slots"
+	lru "github.com/hashicorp/golang-lru"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	libp2pcore "github.com/libp2p/go-libp2p/core"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	gcache "github.com/patrickmn/go-cache"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/trailofbits/go-mutexasserts"
+	"golang.org/x/sync/singleflight"
 )
 
 var _ runtime.Service = (*Service)(nil)
@@ -108,7 +106,6 @@ type config struct {
 	stateNotifier           statefeed.Notifier
 	blobStorage             *filesystem.BlobStorage
 	dataColumnStorage       *filesystem.DataColumnStorage
-	custodyInfo             *peerdas.CustodyInfo
 	batchVerifierLimit      int
 }
 
@@ -137,7 +134,7 @@ type Service struct {
 	cancel                           context.CancelFunc
 	slotToPendingBlocks              *gcache.Cache
 	seenPendingBlocks                map[[32]byte]bool
-	blkRootToPendingAtts             map[[32]byte][]ethpb.SignedAggregateAttAndProof
+	blkRootToPendingAtts             map[[32]byte][]any
 	subHandler                       *subTopicHandler
 	pendingAttsLock                  sync.RWMutex
 	pendingQueueLock                 sync.RWMutex
@@ -168,18 +165,23 @@ type Service struct {
 	syncContributionBitsOverlapLock  sync.RWMutex
 	syncContributionBitsOverlapCache *lru.Cache
 	signatureChan                    chan *signatureVerifier
+	kzgChan                          chan *kzgVerifier
 	clockWaiter                      startup.ClockWaiter
 	initialSyncComplete              chan struct{}
 	verifierWaiter                   *verification.InitializerWaiter
 	newBlobVerifier                  verification.NewBlobVerifier
 	newColumnsVerifier               verification.NewDataColumnsVerifier
+	columnSidecarsExecSingleFlight   singleflight.Group
+	reconstructionSingleFlight       singleflight.Group
 	availableBlocker                 coverage.AvailableBlocker
-	reconstructionLock               sync.Mutex
 	reconstructionRandGen            *rand.Rand
+	trackedValidatorsCache           *cache.TrackedValidatorsCache
 	ctxMap                           ContextByteVersions
 	slasherEnabled                   bool
 	lcStore                          *lightClient.Store
 	dataColumnLogCh                  chan dataColumnLogEntry
+	digestActions                    perDigestSet
+	subscriptionSpawner              func(func()) // see Service.spawn for details
 }
 
 // NewService initializes new regular sync service.
@@ -192,7 +194,7 @@ func NewService(ctx context.Context, opts ...Option) *Service {
 		cfg:                   &config{clock: startup.NewClock(time.Unix(0, 0), [32]byte{})},
 		slotToPendingBlocks:   gcache.New(pendingBlockExpTime /* exp time */, 0 /* disable janitor */),
 		seenPendingBlocks:     make(map[[32]byte]bool),
-		blkRootToPendingAtts:  make(map[[32]byte][]ethpb.SignedAggregateAttAndProof),
+		blkRootToPendingAtts:  make(map[[32]byte][]any),
 		dataColumnLogCh:       make(chan dataColumnLogEntry, 1000),
 		reconstructionRandGen: rand.NewGenerator(),
 	}
@@ -204,6 +206,10 @@ func NewService(ctx context.Context, opts ...Option) *Service {
 	}
 	// Initialize signature channel with configured limit
 	r.signatureChan = make(chan *signatureVerifier, r.cfg.batchVerifierLimit)
+	// Initialize KZG channel with fixed buffer size of 100.
+	// This buffer size is designed to handle burst traffic of data column gossip messages:
+	// - Data columns arrive less frequently than attestations (default batchVerifierLimit=1000)
+	r.kzgChan = make(chan *kzgVerifier, 100)
 	// Correctly remove it from our seen pending block map.
 	// The eviction method always assumes that the mutex is held.
 	r.slotToPendingBlocks.OnEvicted(func(s string, i interface{}) {
@@ -256,7 +262,8 @@ func (s *Service) Start() {
 	s.newColumnsVerifier = newDataColumnsVerifierFromInitializer(v)
 
 	go s.verifierRoutine()
-	go s.startTasksPostInitialSync()
+	go s.kzgVerifierRoutine()
+	go s.startDiscoveryAndSubscriptions()
 	go s.processDataColumnLogs()
 
 	s.cfg.p2p.AddConnectionHandler(s.reValidatePeer, s.sendGoodbye)
@@ -265,9 +272,14 @@ func (s *Service) Start() {
 		return nil
 	})
 	s.cfg.p2p.AddPingMethod(s.sendPingRequest)
+
 	s.processPendingBlocksQueue()
-	s.processPendingAttsQueue()
 	s.maintainPeerStatuses()
+
+	if params.FuluEnabled() {
+		s.maintainCustodyInfo()
+	}
+
 	s.resyncIfBehind()
 
 	// Update sync metrics.
@@ -287,25 +299,33 @@ func (s *Service) Stop() error {
 		}
 	}()
 
-	// Say goodbye to all peers.
+	// Create context with timeout to prevent hanging
+	goodbyeCtx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	// Use WaitGroup to ensure all goodbye messages complete
+	var wg sync.WaitGroup
 	for _, peerID := range s.cfg.p2p.Peers().Connected() {
 		if s.cfg.p2p.Host().Network().Connectedness(peerID) == network.Connected {
-			if err := s.sendGoodByeAndDisconnect(s.ctx, p2ptypes.GoodbyeCodeClientShutdown, peerID); err != nil {
-				log.WithError(err).WithField("peerID", peerID).Error("Failed to send goodbye message")
-			}
+			wg.Add(1)
+			go func(pid peer.ID) {
+				defer wg.Done()
+				if err := s.sendGoodByeAndDisconnect(goodbyeCtx, p2ptypes.GoodbyeCodeClientShutdown, pid); err != nil {
+					log.WithError(err).WithField("peerID", pid).Error("Failed to send goodbye message")
+				}
+			}(peerID)
 		}
 	}
+	wg.Wait()
+	log.Debug("All goodbye messages sent successfully")
 
-	// Removing RPC Stream handlers.
+	// Now safe to remove handlers / unsubscribe.
 	for _, p := range s.cfg.p2p.Host().Mux().Protocols() {
 		s.cfg.p2p.Host().RemoveStreamHandler(p)
 	}
-
-	// Deregister Topic Subscribers.
 	for _, t := range s.cfg.p2p.PubSub().GetTopics() {
 		s.unSubscribeFromTopic(t)
 	}
-
 	return nil
 }
 
@@ -357,10 +377,13 @@ func (s *Service) waitForChainStart() {
 	}
 	s.ctxMap = ctxMap
 
-	// Register respective rpc handlers at state initialized event.
-	err = s.registerRPCHandlers()
-	if err != nil {
-		log.WithError(err).Error("Could not register rpc handlers")
+	// We need to register RPC handlers ASAP so that we can handle incoming status message
+	// requests from peers.
+	nse := params.GetNetworkScheduleEntry(clock.CurrentEpoch())
+	if err := s.registerRPCHandlers(nse); err != nil {
+		// If we fail here, we won't be able to peer with anyone because we can't handle their status messages.
+		log.WithError(err).Error("Failed to register RPC handlers")
+		// TODO: need ability to bubble the error up to the top of the node init tree and exit safely.
 		return
 	}
 
@@ -372,32 +395,17 @@ func (s *Service) waitForChainStart() {
 	s.markForChainStart()
 }
 
-func (s *Service) startTasksPostInitialSync() {
+func (s *Service) startDiscoveryAndSubscriptions() {
 	// Wait for the chain to start.
 	s.waitForChainStart()
 
-	select {
-	case <-s.initialSyncComplete:
-		// Compute the current epoch.
-		currentSlot := slots.CurrentSlot(s.cfg.clock.GenesisTime())
-		currentEpoch := slots.ToEpoch(currentSlot)
-
-		// Compute the current fork forkDigest.
-		forkDigest, err := s.currentForkDigest()
-		if err != nil {
-			log.WithError(err).Error("Could not retrieve current fork digest")
-			return
-		}
-
-		// Register respective pubsub handlers at state synced event.
-		s.registerSubscribers(currentEpoch, forkDigest)
-
-		// Start the fork watcher.
-		go s.forkWatcher()
-
-	case <-s.ctx.Done():
-		log.Debug("Context closed, exiting goroutine")
+	if s.ctx.Err() != nil {
+		log.Debug("Context closed, exiting StartDiscoveryAndSubscription")
+		return
 	}
+
+	// Start the fork watcher.
+	go s.p2pHandlerControlLoop()
 }
 
 func (s *Service) writeErrorResponseToStream(responseCode byte, reason string, stream libp2pcore.Stream) {
@@ -433,6 +441,15 @@ func (s *Service) pruneDataColumnCache() {
 
 func (s *Service) chainIsStarted() bool {
 	return s.chainStarted.IsSet()
+}
+
+func (s *Service) waitForInitialSync(ctx context.Context) error {
+	select {
+	case <-s.initialSyncComplete:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Checker defines a struct which can verify whether a node is currently

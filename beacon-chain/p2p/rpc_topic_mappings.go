@@ -108,6 +108,8 @@ const (
 	RPCDataColumnSidecarsByRangeTopicV1 = protocolPrefix + DataColumnSidecarsByRangeName + SchemaVersionV1
 
 	// V2 RPC Topics
+	// RPCStatusTopicV2 defines the v1 topic for the status rpc method.
+	RPCStatusTopicV2 = protocolPrefix + StatusMessageName + SchemaVersionV2
 	// RPCBlocksByRangeTopicV2 defines v2 the topic for the blocks by range rpc method.
 	RPCBlocksByRangeTopicV2 = protocolPrefix + BeaconBlocksByRangeMessageName + SchemaVersionV2
 	// RPCBlocksByRootTopicV2 defines the v2 topic for the blocks by root rpc method.
@@ -130,6 +132,7 @@ var (
 	RPCTopicMappings = map[string]interface{}{
 		// RPC Status Message
 		RPCStatusTopicV1: new(pb.Status),
+		RPCStatusTopicV2: new(pb.StatusV2),
 
 		// RPC Goodbye Message
 		RPCGoodByeTopicV1: new(primitives.SSZUint64),
@@ -166,7 +169,7 @@ var (
 		RPCDataColumnSidecarsByRangeTopicV1: new(pb.DataColumnSidecarsByRangeRequest),
 
 		// DataColumnSidecarsByRoot v1 Message
-		RPCDataColumnSidecarsByRootTopicV1: new(p2ptypes.DataColumnsByRootIdentifiers),
+		RPCDataColumnSidecarsByRootTopicV1: p2ptypes.DataColumnsByRootIdentifiers{},
 	}
 
 	// Maps all registered protocol prefixes.
@@ -201,6 +204,7 @@ var (
 
 	// Maps all the RPC messages which are to updated in fulu.
 	fuluMapping = map[string]string{
+		StatusMessageName:   SchemaVersionV2,
 		MetadataMessageName: SchemaVersionV3,
 	}
 
@@ -341,17 +345,17 @@ func TopicFromMessage(msg string, epoch primitives.Epoch) (string, error) {
 		return "", errors.Errorf("%s: %s", invalidRPCMessageType, msg)
 	}
 
-	beaconConfig := params.BeaconConfig()
+	cfg := params.BeaconConfig()
 
 	// Check if the message is to be updated in fulu.
-	if epoch >= beaconConfig.FuluForkEpoch {
+	if epoch >= cfg.FuluForkEpoch {
 		if version, ok := fuluMapping[msg]; ok {
 			return protocolPrefix + msg + version, nil
 		}
 	}
 
 	// Check if the message is to be updated in altair.
-	if epoch >= beaconConfig.AltairForkEpoch {
+	if epoch >= cfg.AltairForkEpoch {
 		if version, ok := altairMapping[msg]; ok {
 			return protocolPrefix + msg + version, nil
 		}

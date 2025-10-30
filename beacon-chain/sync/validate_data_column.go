@@ -8,6 +8,7 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/feed"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/feed/operation"
+	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/verification"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/blocks"
@@ -44,7 +45,7 @@ func (s *Service) validateDataColumn(ctx context.Context, pid peer.ID, msg *pubs
 
 	// Reject messages with a nil topic.
 	if msg.Topic == nil {
-		return pubsub.ValidationReject, errInvalidTopic
+		return pubsub.ValidationReject, p2p.ErrInvalidTopic
 	}
 
 	// Decode the message, reject if it fails.
@@ -144,9 +145,12 @@ func (s *Service) validateDataColumn(ctx context.Context, pid peer.ID, msg *pubs
 	}
 
 	// [REJECT] The sidecar's column data is valid as verified by `verify_data_column_sidecar_kzg_proofs(sidecar)`.
-	if err := verifier.SidecarKzgProofVerified(); err != nil {
-		return pubsub.ValidationReject, err
+	validationResult, err := s.validateWithKzgBatchVerifier(ctx, roDataColumns)
+	if validationResult != pubsub.ValidationAccept {
+		return validationResult, err
 	}
+	// Mark KZG verification as satisfied since we did it via batch verifier
+	verifier.SatisfyRequirement(verification.RequireSidecarKzgProofVerified)
 
 	// [IGNORE] The sidecar is the first sidecar for the tuple `(block_header.slot, block_header.proposer_index, sidecar.index)`
 	// with valid header signature, sidecar inclusion proof, and kzg proof.
@@ -180,7 +184,7 @@ func (s *Service) validateDataColumn(ctx context.Context, pid peer.ID, msg *pubs
 	dataColumnSidecarVerificationSuccessesCounter.Inc()
 
 	// Get the time at slot start.
-	startTime, err := slots.StartTime(s.cfg.chain.GenesisTime(), roDataColumn.SignedBlockHeader.Header.Slot)
+	startTime, err := slots.StartTime(s.cfg.clock.GenesisTime(), roDataColumn.SignedBlockHeader.Header.Slot)
 	if err != nil {
 		return pubsub.ValidationIgnore, err
 	}
