@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -151,7 +152,7 @@ func (s *Server) SyncCommitteeRewards(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, proposerReward, err := altair.ProcessSyncAggregate(r.Context(), st, sa)
+	_, proposerReward, err := altair.ProcessSyncAggregateNoVerifySig(r.Context(), st, sa)
 	if err != nil {
 		httputil.HandleError(w, "Could not get sync aggregate rewards: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -388,12 +389,9 @@ func syncRewardsVals(
 	scIndices := make([]primitives.ValidatorIndex, 0, len(allScIndices))
 	scVals := make([]*precompute.Validator, 0, len(allScIndices))
 	for _, valIdx := range valIndices {
-		for _, scIdx := range allScIndices {
-			if valIdx == scIdx {
-				scVals = append(scVals, allVals[valIdx])
-				scIndices = append(scIndices, valIdx)
-				break
-			}
+		if slices.Contains(allScIndices, valIdx) {
+			scVals = append(scVals, allVals[valIdx])
+			scIndices = append(scIndices, valIdx)
 		}
 	}
 

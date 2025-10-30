@@ -40,7 +40,7 @@ func (s *Service) streamBlobBatch(ctx context.Context, batch blockBatch, wQuota 
 				return wQuota, errors.Wrapf(err, "could not retrieve sidecar: index %d, block root %#x", i, root)
 			}
 			SetStreamWriteDeadline(stream, defaultWriteDuration)
-			if chunkErr := WriteBlobSidecarChunk(stream, s.cfg.chain, s.cfg.p2p.Encoding(), sc); chunkErr != nil {
+			if chunkErr := WriteBlobSidecarChunk(stream, s.cfg.clock, s.cfg.p2p.Encoding(), sc); chunkErr != nil {
 				log.WithError(chunkErr).Debug("Could not send a chunked response")
 				s.writeErrorResponseToStream(responseCodeServerError, p2ptypes.ErrGeneric.Error(), stream)
 				tracing.AnnotateError(span, chunkErr)
@@ -56,6 +56,8 @@ func (s *Service) streamBlobBatch(ctx context.Context, batch blockBatch, wQuota 
 	}
 	return wQuota, nil
 }
+
+var blobRpcThrottleInterval = time.Second
 
 // blobsSidecarsByRangeRPCHandler looks up the request blobs from the database from a given start slot index
 func (s *Service) blobSidecarsByRangeRPCHandler(ctx context.Context, msg interface{}, stream libp2pcore.Stream) error {
@@ -77,7 +79,7 @@ func (s *Service) blobSidecarsByRangeRPCHandler(ctx context.Context, msg interfa
 
 	remotePeer := stream.Conn().RemotePeer()
 
-	rp, err := validateBlobsByRange(r, s.cfg.chain.CurrentSlot())
+	rp, err := validateBlobsByRange(r, s.cfg.clock.CurrentSlot())
 	if err != nil {
 		s.writeErrorResponseToStream(responseCodeInvalidRequest, err.Error(), stream)
 		s.downscorePeer(remotePeer, "blobSidecarsByRangeRpcHandlerValidationError")
@@ -86,7 +88,7 @@ func (s *Service) blobSidecarsByRangeRPCHandler(ctx context.Context, msg interfa
 	}
 
 	// Ticker to stagger out large requests.
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(blobRpcThrottleInterval)
 	defer ticker.Stop()
 	batcher, err := newBlockRangeBatcher(rp, s.cfg.beaconDB, s.rateLimiter, s.cfg.chain.IsCanonical, ticker)
 	if err != nil {
@@ -99,7 +101,7 @@ func (s *Service) blobSidecarsByRangeRPCHandler(ctx context.Context, msg interfa
 	var batch blockBatch
 
 	wQuota := params.BeaconConfig().MaxRequestBlobSidecars
-	if slots.ToEpoch(s.cfg.chain.CurrentSlot()) >= params.BeaconConfig().ElectraForkEpoch {
+	if slots.ToEpoch(s.cfg.clock.CurrentSlot()) >= params.BeaconConfig().ElectraForkEpoch {
 		wQuota = params.BeaconConfig().MaxRequestBlobSidecarsElectra
 	}
 	for batch, ok = batcher.next(ctx, stream); ok; batch, ok = batcher.next(ctx, stream) {

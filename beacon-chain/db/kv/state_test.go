@@ -10,11 +10,13 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/state"
 	"github.com/OffchainLabs/prysm/v6/config/features"
+	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/blocks"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
+	"github.com/OffchainLabs/prysm/v6/genesis"
 	enginev1 "github.com/OffchainLabs/prysm/v6/proto/engine/v1"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/testing/assert"
@@ -488,7 +490,7 @@ func TestGenesisState_CanSaveRetrieve(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, st.SetSlot(1))
 	require.NoError(t, db.SaveGenesisBlockRoot(t.Context(), headRoot))
-	require.NoError(t, db.SaveState(t.Context(), st, headRoot))
+	genesis.StoreStateDuringTest(t, st)
 
 	savedGenesisS, err := db.GenesisState(t.Context())
 	require.NoError(t, err)
@@ -661,7 +663,7 @@ func TestStore_GenesisState_CanGetHighestBelow(t *testing.T) {
 	require.NoError(t, err)
 	genesisRoot := [32]byte{'a'}
 	require.NoError(t, db.SaveGenesisBlockRoot(t.Context(), genesisRoot))
-	require.NoError(t, db.SaveState(t.Context(), genesisState, genesisRoot))
+	genesis.StoreStateDuringTest(t, genesisState)
 
 	b := util.NewBeaconBlock()
 	b.Block.Slot = 1
@@ -1282,3 +1284,50 @@ func BenchmarkState_CheckStateSaveTime_10(b *testing.B) { checkStateSaveTime(b, 
 
 func BenchmarkState_CheckStateReadTime_1(b *testing.B)  { checkStateReadTime(b, 1) }
 func BenchmarkState_CheckStateReadTime_10(b *testing.B) { checkStateReadTime(b, 10) }
+
+func TestStore_CleanUpDirtyStates_NoOriginRoot(t *testing.T) {
+	// This test verifies that CleanUpDirtyStates does not fail when the origin block root is not set,
+	// which can happen when starting from genesis or in certain fork scenarios like Fulu.
+	db := setupDB(t)
+	genesisState, err := util.NewBeaconState()
+	require.NoError(t, err)
+	genesisRoot := [fieldparams.RootLength]byte{'a'}
+	require.NoError(t, db.SaveGenesisBlockRoot(t.Context(), genesisRoot))
+	require.NoError(t, db.SaveState(t.Context(), genesisState, genesisRoot))
+	// Note: We intentionally do NOT call SaveOriginCheckpointBlockRoot here
+	// to simulate the scenario where origin block root is not set
+	slotsPerArchivedPoint := primitives.Slot(128)
+	bRoots := make([][fieldparams.RootLength]byte, 0)
+	prevRoot := genesisRoot
+	for i := primitives.Slot(1); i <= slotsPerArchivedPoint; i++ { // skip slot 0
+		b := util.NewBeaconBlock()
+		b.Block.Slot = i
+		b.Block.ParentRoot = prevRoot[:]
+		r, err := b.Block.HashTreeRoot()
+		require.NoError(t, err)
+		wsb, err := blocks.NewSignedBeaconBlock(b)
+		require.NoError(t, err)
+		require.NoError(t, db.SaveBlock(t.Context(), wsb))
+		bRoots = append(bRoots, r)
+		prevRoot = r
+		st, err := util.NewBeaconState()
+		require.NoError(t, err)
+		require.NoError(t, st.SetSlot(i))
+		require.NoError(t, db.SaveState(t.Context(), st, r))
+	}
+	require.NoError(t, db.SaveFinalizedCheckpoint(t.Context(), &ethpb.Checkpoint{
+		Root:  bRoots[len(bRoots)-1][:],
+		Epoch: primitives.Epoch(slotsPerArchivedPoint / params.BeaconConfig().SlotsPerEpoch),
+	}))
+	// This should not fail even though origin block root is not set
+	err = db.CleanUpDirtyStates(t.Context(), slotsPerArchivedPoint)
+	require.NoError(t, err)
+	// Verify that cleanup still works correctly
+	for i, root := range bRoots {
+		if primitives.Slot(i) >= slotsPerArchivedPoint.SubSlot(slotsPerArchivedPoint.Div(3)) {
+			require.Equal(t, true, db.HasState(t.Context(), root))
+		} else {
+			require.Equal(t, false, db.HasState(t.Context(), root))
+		}
+	}
+}

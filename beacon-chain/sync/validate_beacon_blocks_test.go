@@ -103,9 +103,82 @@ func TestValidateBeaconBlockPubSub_InvalidSignature(t *testing.T) {
 		},
 	}
 	res, err := r.validateBeaconBlockPubSub(ctx, "", m)
-	require.ErrorIs(t, err, signing.ErrSigFailedToVerify)
+	require.ErrorContains(t, "invalid signature", err)
 	result := res == pubsub.ValidationReject
 	assert.Equal(t, true, result)
+}
+
+func TestValidateBeaconBlockPubSub_InvalidSignature_MarksBlockAsBad(t *testing.T) {
+	db := dbtest.SetupDB(t)
+	p := p2ptest.NewTestP2P(t)
+	ctx := t.Context()
+	beaconState, privKeys := util.DeterministicGenesisState(t, 100)
+	parentBlock := util.NewBeaconBlock()
+	util.SaveBlock(t, ctx, db, parentBlock)
+	bRoot, err := parentBlock.Block.HashTreeRoot()
+	require.NoError(t, err)
+	require.NoError(t, db.SaveState(ctx, beaconState, bRoot))
+	require.NoError(t, db.SaveStateSummary(ctx, &ethpb.StateSummary{Root: bRoot[:]}))
+	copied := beaconState.Copy()
+	require.NoError(t, copied.SetSlot(1))
+	proposerIdx, err := helpers.BeaconProposerIndex(ctx, copied)
+	require.NoError(t, err)
+	msg := util.NewBeaconBlock()
+	msg.Block.ParentRoot = bRoot[:]
+	msg.Block.Slot = 1
+	msg.Block.ProposerIndex = proposerIdx
+	badPrivKeyIdx := proposerIdx + 1 // We generate a valid signature from a wrong private key which fails to verify
+	msg.Signature, err = signing.ComputeDomainAndSign(beaconState, 0, msg.Block, params.BeaconConfig().DomainBeaconProposer, privKeys[badPrivKeyIdx])
+	require.NoError(t, err)
+
+	stateGen := stategen.New(db, doublylinkedtree.New())
+	chainService := &mock.ChainService{Genesis: time.Unix(time.Now().Unix()-int64(params.BeaconConfig().SecondsPerSlot), 0),
+		FinalizedCheckPoint: &ethpb.Checkpoint{
+			Epoch: 0,
+			Root:  make([]byte, 32),
+		},
+		DB: db,
+	}
+	r := &Service{
+		cfg: &config{
+			beaconDB:      db,
+			p2p:           p,
+			initialSync:   &mockSync.Sync{IsSyncing: false},
+			chain:         chainService,
+			clock:         startup.NewClock(chainService.Genesis, chainService.ValidatorsRoot),
+			blockNotifier: chainService.BlockNotifier(),
+			stateGen:      stateGen,
+		},
+		seenBlockCache: lruwrpr.New(10),
+		badBlockCache:  lruwrpr.New(10),
+	}
+
+	blockRoot, err := msg.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Verify block is not marked as bad initially
+	assert.Equal(t, false, r.hasBadBlock(blockRoot), "block should not be marked as bad initially")
+
+	buf := new(bytes.Buffer)
+	_, err = p.Encoding().EncodeGossip(buf, msg)
+	require.NoError(t, err)
+	topic := p2p.GossipTypeMapping[reflect.TypeOf(msg)]
+	digest, err := r.currentForkDigest()
+	assert.NoError(t, err)
+	topic = r.addDigestToTopic(topic, digest)
+	m := &pubsub.Message{
+		Message: &pubsubpb.Message{
+			Data:  buf.Bytes(),
+			Topic: &topic,
+		},
+	}
+	res, err := r.validateBeaconBlockPubSub(ctx, "", m)
+	require.ErrorContains(t, "invalid signature", err)
+	result := res == pubsub.ValidationReject
+	assert.Equal(t, true, result)
+
+	// Verify block is now marked as bad after invalid signature
+	assert.Equal(t, true, r.hasBadBlock(blockRoot), "block should be marked as bad after invalid signature")
 }
 
 func TestValidateBeaconBlockPubSub_BlockAlreadyPresentInDB(t *testing.T) {
@@ -779,6 +852,8 @@ func TestValidateBeaconBlockPubSub_SeenProposerSlot(t *testing.T) {
 }
 
 func TestValidateBeaconBlockPubSub_FilterByFinalizedEpoch(t *testing.T) {
+	params.SetupTestConfigCleanup(t)
+	params.BeaconConfig().InitializeForkSchedule()
 	hook := logTest.NewGlobal()
 	db := dbtest.SetupDB(t)
 	p := p2ptest.NewTestP2P(t)
@@ -791,7 +866,7 @@ func TestValidateBeaconBlockPubSub_FilterByFinalizedEpoch(t *testing.T) {
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 1,
 		},
-		ValidatorsRoot: [32]byte{},
+		ValidatorsRoot: params.BeaconConfig().GenesisValidatorsRoot,
 	}
 
 	r := &Service{
@@ -814,7 +889,7 @@ func TestValidateBeaconBlockPubSub_FilterByFinalizedEpoch(t *testing.T) {
 	buf := new(bytes.Buffer)
 	_, err = p.Encoding().EncodeGossip(buf, b)
 	require.NoError(t, err)
-	digest, err := signing.ComputeForkDigest(params.BeaconConfig().GenesisForkVersion, make([]byte, 32))
+	digest, err := signing.ComputeForkDigest(params.BeaconConfig().GenesisForkVersion, params.BeaconConfig().GenesisValidatorsRoot[:])
 	assert.NoError(t, err)
 	topic := fmt.Sprintf(p2p.GossipTypeMapping[reflect.TypeOf(b)], digest)
 	m := &pubsub.Message{
@@ -974,7 +1049,7 @@ func TestValidateBeaconBlockPubSub_InvalidParentBlock(t *testing.T) {
 		},
 	}
 	res, err := r.validateBeaconBlockPubSub(ctx, "", m)
-	require.ErrorContains(t, "could not unmarshal bytes into signature", err)
+	require.ErrorContains(t, "invalid signature", err)
 	assert.Equal(t, res, pubsub.ValidationReject, "block with invalid signature should be rejected")
 
 	require.NoError(t, copied.SetSlot(2))
@@ -1187,6 +1262,8 @@ func TestService_isBlockQueueable(t *testing.T) {
 }
 
 func TestValidateBeaconBlockPubSub_ValidExecutionPayload(t *testing.T) {
+	params.SetupTestConfigCleanup(t)
+	params.BeaconConfig().InitializeForkSchedule()
 	db := dbtest.SetupDB(t)
 	p := p2ptest.NewTestP2P(t)
 	ctx := t.Context()
@@ -1219,7 +1296,8 @@ func TestValidateBeaconBlockPubSub_ValidExecutionPayload(t *testing.T) {
 
 	stateGen := stategen.New(db, doublylinkedtree.New())
 	chainService := &mock.ChainService{Genesis: now.Add(-1 * time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second),
-		DB: db,
+		ValidatorsRoot: params.BeaconConfig().GenesisValidatorsRoot,
+		DB:             db,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
 			Root:  make([]byte, 32),
@@ -1419,6 +1497,8 @@ func Test_validateBellatrixBeaconBlockParentValidation(t *testing.T) {
 }
 
 func Test_validateBeaconBlockProcessingWhenParentIsOptimistic(t *testing.T) {
+	params.SetupTestConfigCleanup(t)
+	params.BeaconConfig().InitializeForkSchedule()
 	db := dbtest.SetupDB(t)
 	p := p2ptest.NewTestP2P(t)
 	ctx := t.Context()
@@ -1450,8 +1530,9 @@ func Test_validateBeaconBlockProcessingWhenParentIsOptimistic(t *testing.T) {
 	require.NoError(t, err)
 
 	chainService := &mock.ChainService{Genesis: beaconState.GenesisTime(),
-		DB:         db,
-		Optimistic: true,
+		ValidatorsRoot: params.BeaconConfig().GenesisValidatorsRoot,
+		DB:             db,
+		Optimistic:     true,
 		FinalizedCheckPoint: &ethpb.Checkpoint{
 			Epoch: 0,
 			Root:  make([]byte, 32),

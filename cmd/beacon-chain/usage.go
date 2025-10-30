@@ -7,10 +7,10 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/cmd"
 	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/flags"
+	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/genesis"
 	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/storage"
 	backfill "github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/sync/backfill/flags"
 	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/sync/checkpoint"
-	"github.com/OffchainLabs/prysm/v6/cmd/beacon-chain/sync/genesis"
 	"github.com/OffchainLabs/prysm/v6/config/features"
 	"github.com/OffchainLabs/prysm/v6/runtime/debug"
 	"github.com/urfave/cli/v2"
@@ -84,11 +84,11 @@ var appHelpFlagGroups = []flagGroup{
 			cmd.NoDiscovery,
 			cmd.P2PAllowList,
 			cmd.P2PDenyList,
+			cmd.P2PColocationWhitelist,
 			cmd.P2PHost,
 			cmd.P2PHostDNS,
 			cmd.P2PIP,
 			cmd.P2PMaxPeers,
-			cmd.P2PMetadata,
 			cmd.P2PPrivKey,
 			cmd.P2PQUICPort,
 			cmd.P2PStaticID,
@@ -99,12 +99,15 @@ var appHelpFlagGroups = []flagGroup{
 			cmd.StaticPeers,
 			flags.BlobBatchLimit,
 			flags.BlobBatchLimitBurstFactor,
+			flags.DataColumnBatchLimit,
+			flags.DataColumnBatchLimitBurstFactor,
 			flags.BlockBatchLimit,
 			flags.BlockBatchLimitBurstFactor,
 			flags.MaxConcurrentDials,
 			flags.MinPeersPerSubnet,
 			flags.MinSyncPeers,
 			flags.SubscribeToAllSubnets,
+			flags.SubscribeAllDataSubnets,
 		},
 	},
 	{ // Flags relevant to storing data on disk and configuring the beacon chain database.
@@ -125,6 +128,7 @@ var appHelpFlagGroups = []flagGroup{
 			storage.BlobRetentionEpochFlag,
 			storage.BlobStorageLayout,
 			storage.BlobStoragePathFlag,
+			storage.DataColumnStoragePathFlag,
 		},
 	},
 	{ // Flags relevant to configuring local block production or external builders such as mev-boost.

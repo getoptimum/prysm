@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/altair"
@@ -94,7 +93,7 @@ func (v *validator) SubmitSyncCommitteeMessage(ctx context.Context, slot primiti
 		"blockRoot":          fmt.Sprintf("%#x", bytesutil.Trunc(msg.BlockRoot)),
 		"validatorIndex":     msg.ValidatorIndex,
 	}).Info("Submitted new sync message")
-	atomic.AddUint64(&v.syncCommitteeStats.totalMessagesSubmitted, 1)
+	v.syncCommitteeStats.totalMessagesSubmitted.Add(1)
 }
 
 // SubmitSignedContributionAndProof submits the signed sync committee contribution and proof to the beacon chain.
@@ -130,6 +129,7 @@ func (v *validator) SubmitSignedContributionAndProof(ctx context.Context, slot p
 
 	v.waitToSlotTwoThirds(ctx, slot)
 
+	coveredSubnets := make(map[uint64]bool)
 	for i, comIdx := range indexRes.Indices {
 		isAggregator, err := altair.IsSyncCommitteeAggregator(selectionProofs[i])
 		if err != nil {
@@ -141,6 +141,10 @@ func (v *validator) SubmitSignedContributionAndProof(ctx context.Context, slot p
 		}
 		subCommitteeSize := params.BeaconConfig().SyncCommitteeSize / params.BeaconConfig().SyncCommitteeSubnetCount
 		subnet := uint64(comIdx) / subCommitteeSize
+		if coveredSubnets[subnet] {
+			// Don't submit a message for the same subnet multiple times
+			continue
+		}
 		contribution, err := v.validatorClient.SyncCommitteeContribution(ctx, &ethpb.SyncCommitteeContributionRequest{
 			Slot:      slot,
 			PublicKey: pubKey[:],
@@ -177,6 +181,8 @@ func (v *validator) SubmitSignedContributionAndProof(ctx context.Context, slot p
 			log.WithError(err).Error("Could not submit signed contribution and proof")
 			return
 		}
+
+		coveredSubnets[subnet] = true
 
 		contributionSlot := contributionAndProof.Contribution.Slot
 		slotTime, err := slots.StartTime(v.genesisTime, contributionSlot)

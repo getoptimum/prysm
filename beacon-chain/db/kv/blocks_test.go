@@ -1,6 +1,7 @@
 package kv
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -652,6 +653,44 @@ func TestStore_BlocksCRUD_NoCache(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, true, proto.Equal(wantedPb, retrievedPb), "Wanted: %v, received: %v", wanted, retrievedBlock)
 		})
+	}
+}
+
+func TestAvailableBlocks(t *testing.T) {
+	ctx := t.Context()
+	db := setupDB(t)
+
+	b0, b1, b2 := util.NewBeaconBlock(), util.NewBeaconBlock(), util.NewBeaconBlock()
+	b0.Block.Slot, b1.Block.Slot, b2.Block.Slot = 10, 20, 30
+
+	sb0, err := blocks.NewSignedBeaconBlock(b0)
+	require.NoError(t, err)
+	r0, err := b0.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Save b0 but remove it from cache.
+	err = db.SaveBlock(ctx, sb0)
+	require.NoError(t, err)
+	db.blockCache.Del(string(r0[:]))
+
+	// b1 is not saved at all.
+	r1, err := b1.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Save b2 in cache and DB.
+	sb2, err := blocks.NewSignedBeaconBlock(b2)
+	require.NoError(t, err)
+	r2, err := b2.Block.HashTreeRoot()
+	require.NoError(t, err)
+	require.NoError(t, db.SaveBlock(ctx, sb2))
+	require.NoError(t, err)
+
+	expected := map[[32]byte]bool{r0: true, r2: true}
+	actual := db.AvailableBlocks(ctx, [][32]byte{r0, r1, r2})
+
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		require.Equal(t, true, actual[i])
 	}
 }
 
@@ -1326,4 +1365,87 @@ func TestStore_RegistrationsByValidatorID(t *testing.T) {
 	_, err = db.RegistrationByValidatorID(ctx, 3)
 	want := errors.Wrap(ErrNotFoundFeeRecipient, "validator id 3")
 	require.Equal(t, want.Error(), err.Error())
+}
+
+// Block creates a phase0 beacon block at the specified slot and saves it to the database.
+func createAndSaveBlock(t *testing.T, ctx context.Context, db *Store, slot primitives.Slot) {
+	block := util.NewBeaconBlock()
+	block.Block.Slot = slot
+
+	wrappedBlock, err := blocks.NewSignedBeaconBlock(block)
+	require.NoError(t, err)
+	require.NoError(t, db.SaveBlock(ctx, wrappedBlock))
+}
+
+func TestStore_EarliestSlot(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("empty database returns ErrNotFound", func(t *testing.T) {
+		db := setupDB(t)
+
+		slot, err := db.EarliestSlot(ctx)
+		require.ErrorIs(t, err, ErrNotFound)
+		assert.Equal(t, primitives.Slot(0), slot)
+	})
+
+	t.Run("database with only genesis block", func(t *testing.T) {
+		db := setupDB(t)
+
+		// Create and save genesis block (slot 0)
+		createAndSaveBlock(t, ctx, db, 0)
+
+		slot, err := db.EarliestSlot(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primitives.Slot(0), slot)
+	})
+
+	t.Run("database with genesis and blocks in genesis epoch", func(t *testing.T) {
+		db := setupDB(t)
+		slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
+
+		// Create and save genesis block (slot 0)
+		createAndSaveBlock(t, ctx, db, 0)
+
+		// Create and save a block in the genesis epoch
+		createAndSaveBlock(t, ctx, db, primitives.Slot(slotsPerEpoch-1))
+
+		slot, err := db.EarliestSlot(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, primitives.Slot(0), slot)
+	})
+
+	t.Run("database with genesis and blocks beyond genesis epoch", func(t *testing.T) {
+		db := setupDB(t)
+		slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
+
+		// Create and save genesis block (slot 0)
+		createAndSaveBlock(t, ctx, db, 0)
+
+		// Create and save a block beyond the genesis epoch
+		nextEpochSlot := primitives.Slot(slotsPerEpoch)
+		createAndSaveBlock(t, ctx, db, nextEpochSlot)
+
+		slot, err := db.EarliestSlot(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, nextEpochSlot, slot)
+	})
+
+	t.Run("database starting from checkpoint (non-zero earliest slot)", func(t *testing.T) {
+		db := setupDB(t)
+		slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
+
+		// Simulate starting from a checkpoint by creating blocks starting from a later slot
+		checkpointSlot := primitives.Slot(slotsPerEpoch * 10) // 10 epochs later
+		nextEpochSlot := checkpointSlot + slotsPerEpoch
+
+		// Create and save first block at checkpoint slot
+		createAndSaveBlock(t, ctx, db, checkpointSlot)
+
+		// Create and save another block in the next epoch
+		createAndSaveBlock(t, ctx, db, nextEpochSlot)
+
+		slot, err := db.EarliestSlot(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, nextEpochSlot, slot)
+	})
 }

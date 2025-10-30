@@ -559,3 +559,35 @@ func TestGetDutiesV2_SyncNotReady(t *testing.T) {
 	_, err := vs.GetDutiesV2(t.Context(), &ethpb.DutiesRequest{})
 	assert.ErrorContains(t, "Syncing to latest head", err)
 }
+
+func TestGetValidatorAssignment(t *testing.T) {
+	start := primitives.Slot(100)
+
+	// Test using CommitteeAssignments
+	committeeAssignments := map[primitives.ValidatorIndex]*helpers.CommitteeAssignment{
+		5: {
+			Committee:      []primitives.ValidatorIndex{4, 5, 6},
+			AttesterSlot:   start + 1,
+			CommitteeIndex: primitives.CommitteeIndex(0),
+		},
+	}
+
+	meta := &metadata{
+		committeeAssignments: committeeAssignments,
+	}
+
+	vs := &Server{}
+
+	// Test existing validator
+	assignment := vs.getValidatorAssignment(meta, primitives.ValidatorIndex(5))
+	require.NotNil(t, assignment)
+	assert.Equal(t, start+1, assignment.AttesterSlot)
+	assert.Equal(t, primitives.CommitteeIndex(0), assignment.CommitteeIndex)
+	assert.Equal(t, uint64(1), assignment.ValidatorCommitteeIndex)
+
+	// Test non-existent validator should return empty assignment
+	assignment = vs.getValidatorAssignment(meta, primitives.ValidatorIndex(99))
+	require.NotNil(t, assignment)
+	assert.Equal(t, primitives.Slot(0), assignment.AttesterSlot)
+	assert.Equal(t, primitives.CommitteeIndex(0), assignment.CommitteeIndex)
+}

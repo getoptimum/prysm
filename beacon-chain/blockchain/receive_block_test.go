@@ -9,9 +9,9 @@ import (
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/cache"
 	statefeed "github.com/OffchainLabs/prysm/v6/beacon-chain/core/feed/state"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/helpers"
-	lightClient "github.com/OffchainLabs/prysm/v6/beacon-chain/core/light-client"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/das"
 	forkchoicetypes "github.com/OffchainLabs/prysm/v6/beacon-chain/forkchoice/types"
+	lightClient "github.com/OffchainLabs/prysm/v6/beacon-chain/light-client"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/operations/voluntaryexits"
 	"github.com/OffchainLabs/prysm/v6/config/features"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
@@ -192,7 +192,9 @@ func TestHandleDA(t *testing.T) {
 	require.NoError(t, err)
 
 	s, _ := minimalTestService(t)
-	elapsed, err := s.handleDA(t.Context(), signedBeaconBlock, [fieldparams.RootLength]byte{}, nil)
+	block, err := blocks.NewROBlockWithRoot(signedBeaconBlock, [32]byte{})
+	require.NoError(t, err)
+	elapsed, err := s.handleDA(t.Context(), nil, block)
 	require.NoError(t, err)
 	require.Equal(t, true, elapsed > 0, "Elapsed time should be greater than 0")
 }
@@ -311,7 +313,10 @@ func TestService_HasBlock(t *testing.T) {
 	r, err = b.Block.HashTreeRoot()
 	require.NoError(t, err)
 	require.Equal(t, true, s.HasBlock(t.Context(), r))
-	s.blockBeingSynced.set(r)
+	err = s.blockBeingSynced.set(r)
+	require.NoError(t, err)
+	err = s.blockBeingSynced.set(r)
+	require.ErrorIs(t, err, errBlockBeingSynced)
 	require.Equal(t, false, s.HasBlock(t.Context(), r))
 }
 
@@ -591,11 +596,7 @@ func TestProcessLightClientBootstrap(t *testing.T) {
 
 			require.NoError(t, s.cfg.ForkChoiceStore.UpdateFinalizedCheckpoint(&forkchoicetypes.Checkpoint{Epoch: cp.Epoch, Root: [32]byte(cp.Root)}))
 
-			sss, err := s.cfg.BeaconDB.State(ctx, finalizedBlockRoot)
-			require.NoError(t, err)
-			require.NotNil(t, sss)
-
-			s.executePostFinalizationTasks(s.ctx, l.FinalizedState)
+			s.executePostFinalizationTasks(s.ctx, l.AttestedState)
 
 			// wait for the goroutine to finish processing
 			time.Sleep(1 * time.Second)

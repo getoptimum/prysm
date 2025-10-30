@@ -24,7 +24,8 @@ package peers
 
 import (
 	"context"
-	"math"
+	"net"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -81,37 +82,44 @@ const (
 type InternetProtocol string
 
 const (
-	TCP  = "tcp"
-	QUIC = "quic"
+	TCP  = InternetProtocol("tcp")
+	QUIC = InternetProtocol("quic")
 )
 
-// Status is the structure holding the peer status information.
-type Status struct {
-	ctx       context.Context
-	scorers   *scorers.Service
-	store     *peerdata.Store
-	ipTracker map[string]uint64
-	rand      *rand.Rand
-}
+type (
+	// Status is the structure holding the peer status information.
+	Status struct {
+		ctx                   context.Context
+		scorers               *scorers.Service
+		store                 *peerdata.Store
+		ipTracker             map[string]uint64
+		rand                  *rand.Rand
+		ipColocationWhitelist []*net.IPNet
+	}
 
-// StatusConfig represents peer status service params.
-type StatusConfig struct {
-	// PeerLimit specifies maximum amount of concurrent peers that are expected to be connect to the node.
-	PeerLimit int
-	// ScorerParams holds peer scorer configuration params.
-	ScorerParams *scorers.Config
-}
+	// StatusConfig represents peer status service params.
+	StatusConfig struct {
+		// PeerLimit specifies maximum amount of concurrent peers that are expected to be connect to the node.
+		PeerLimit int
+		// ScorerParams holds peer scorer configuration params.
+		ScorerParams *scorers.Config
+		// IPColocationWhitelist contains CIDR ranges that are exempt from IP colocation limits.
+		IPColocationWhitelist []*net.IPNet
+	}
+)
 
 // NewStatus creates a new status entity.
 func NewStatus(ctx context.Context, config *StatusConfig) *Status {
 	store := peerdata.NewStore(ctx, &peerdata.StoreConfig{
 		MaxPeers: maxLimitBuffer + config.PeerLimit,
 	})
+
 	return &Status{
-		ctx:       ctx,
-		store:     store,
-		scorers:   scorers.NewService(ctx, store, config.ScorerParams),
-		ipTracker: map[string]uint64{},
+		ctx:                   ctx,
+		store:                 store,
+		scorers:               scorers.NewService(ctx, store, config.ScorerParams),
+		ipTracker:             map[string]uint64{},
+		ipColocationWhitelist: config.IPColocationWhitelist,
 		// Random generator used to calculate dial backoff period.
 		// It is ok to use deterministic generator, no need for true entropy.
 		rand: rand.NewDeterministicGenerator(),
@@ -205,14 +213,14 @@ func (p *Status) ENR(pid peer.ID) (*enr.Record, error) {
 }
 
 // SetChainState sets the chain state of the given remote peer.
-func (p *Status) SetChainState(pid peer.ID, chainState *pb.Status) {
+func (p *Status) SetChainState(pid peer.ID, chainState *pb.StatusV2) {
 	p.scorers.PeerStatusScorer().SetPeerStatus(pid, chainState, nil)
 }
 
 // ChainState gets the chain state of the given remote peer.
 // This will error if the peer does not exist.
 // This will error if there is no known chain state for the peer.
-func (p *Status) ChainState(pid peer.ID) (*pb.Status, error) {
+func (p *Status) ChainState(pid peer.ID) (*pb.StatusV2, error) {
 	return p.scorers.PeerStatusScorer().PeerStatus(pid)
 }
 
@@ -299,11 +307,8 @@ func (p *Status) SubscribedToSubnet(index uint64) []peer.ID {
 		connectedStatus := peerData.ConnState == Connecting || peerData.ConnState == Connected
 		if connectedStatus && peerData.MetaData != nil && !peerData.MetaData.IsNil() && peerData.MetaData.AttnetsBitfield() != nil {
 			indices := indicesFromBitfield(peerData.MetaData.AttnetsBitfield())
-			for _, idx := range indices {
-				if idx == index {
-					peers = append(peers, pid)
-					break
-				}
+			if slices.Contains(indices, index) {
+				peers = append(peers, pid)
 			}
 		}
 	}
@@ -405,7 +410,7 @@ func (p *Status) RandomizeBackOff(pid peer.ID) {
 		return
 	}
 
-	duration := time.Duration(math.Max(MinBackOffDuration, float64(p.rand.Intn(MaxBackOffDuration)))) * time.Millisecond
+	duration := time.Duration(max(MinBackOffDuration, float64(p.rand.Intn(MaxBackOffDuration)))) * time.Millisecond
 	peerData.NextValidTime = time.Now().Add(duration)
 }
 
@@ -1046,6 +1051,13 @@ func (p *Status) isfromBadIP(pid peer.ID) error {
 
 	if val, ok := p.ipTracker[ip.String()]; ok {
 		if val > CollocationLimit {
+			// Check if IP is in the whitelist
+			for _, ipNet := range p.ipColocationWhitelist {
+				if ipNet.Contains(ip) {
+					// IP is whitelisted, skip colocation limit check
+					return nil
+				}
+			}
 			return errors.Errorf(
 				"colocation limit exceeded: got %d - limit %d for peer %v with IP %v",
 				val, CollocationLimit, pid, ip.String(),

@@ -41,6 +41,11 @@ func (g *Clock) CurrentSlot() types.Slot {
 	return slots.Duration(g.t, now)
 }
 
+// CurrentEpoch returns the current epoch relative to the time.Time value that Clock embeds.
+func (g *Clock) CurrentEpoch() types.Epoch {
+	return slots.ToEpoch(g.CurrentSlot())
+}
+
 // SlotStart computes the time the given slot begins.
 func (g *Clock) SlotStart(slot types.Slot) (time.Time, error) {
 	return slots.StartTime(g.t, slot)
@@ -59,6 +64,25 @@ type ClockOpt func(*Clock)
 func WithNower(n Nower) ClockOpt {
 	return func(g *Clock) {
 		g.now = n
+	}
+}
+
+// WithTimeAsNow will create a Nower based on the given time.Time and set it as the Now() implementation.
+func WithTimeAsNow(t time.Time) ClockOpt {
+	return func(g *Clock) {
+		g.now = func() time.Time { return t }
+	}
+}
+
+func WithSlotAsNow(s types.Slot) ClockOpt {
+	return func(g *Clock) {
+		g.now = func() time.Time {
+			t, err := slots.StartTime(g.t, s)
+			if err != nil {
+				panic(err) // lint:nopanic -- This is a programming error if genesis/slot are invalid.
+			}
+			return t
+		}
 	}
 }
 

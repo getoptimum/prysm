@@ -1049,9 +1049,8 @@ func TestSubmitSyncCommitteeSubscription(t *testing.T) {
 		s.SubmitSyncCommitteeSubscription(writer, request)
 		assert.Equal(t, http.StatusOK, writer.Code)
 		subnets, _, _, _ := cache.SyncSubnetIDs.GetSyncCommitteeSubnets(pubkeys[1], 0)
-		require.Equal(t, 2, len(subnets))
+		require.Equal(t, 1, len(subnets))
 		assert.Equal(t, uint64(0), subnets[0])
-		assert.Equal(t, uint64(2), subnets[1])
 	})
 	t.Run("multiple", func(t *testing.T) {
 		cache.SyncSubnetIDs.EmptyAllCaches()
@@ -1070,7 +1069,7 @@ func TestSubmitSyncCommitteeSubscription(t *testing.T) {
 		assert.Equal(t, uint64(0), subnets[0])
 		subnets, _, _, _ = cache.SyncSubnetIDs.GetSyncCommitteeSubnets(pubkeys[1], 0)
 		require.Equal(t, 1, len(subnets))
-		assert.Equal(t, uint64(2), subnets[0])
+		assert.Equal(t, uint64(0), subnets[0])
 	})
 	t.Run("no body", func(t *testing.T) {
 		request := httptest.NewRequest(http.MethodPost, "http://example.com", nil)
@@ -2116,6 +2115,27 @@ func TestProduceSyncCommitteeContribution(t *testing.T) {
 		}
 		server.ProduceSyncCommitteeContribution(writer, request)
 		assert.Equal(t, http.StatusServiceUnavailable, writer.Code)
+	})
+	t.Run("invalid subcommittee_index", func(t *testing.T) {
+		url := "http://example.com?slot=1&subcommittee_index=10&beacon_block_root=0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+		request := httptest.NewRequest(http.MethodGet, url, nil)
+		writer := httptest.NewRecorder()
+		writer.Body = &bytes.Buffer{}
+
+		// Use non-optimistic server for this test
+		server := Server{
+			CoreService: &core.Service{
+				HeadFetcher: &mockChain.ChainService{
+					SyncCommitteeIndices: []primitives.CommitteeIndex{0},
+				},
+			},
+			SyncCommitteePool:     syncCommitteePool,
+			OptimisticModeFetcher: &mockChain.ChainService{}, // Optimistic: false by default
+		}
+
+		server.ProduceSyncCommitteeContribution(writer, request)
+		assert.Equal(t, http.StatusBadRequest, writer.Code)
+		require.ErrorContains(t, "Subcommittee index needs to be between 0 and 3, 10 is outside of this range.", errors.New(writer.Body.String()))
 	})
 }
 
