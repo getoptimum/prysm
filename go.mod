@@ -11,6 +11,7 @@ require (
 	github.com/consensys/gnark-crypto v0.14.0
 	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/d4l3k/messagediff v1.2.1
+	github.com/dgraph-io/ristretto v0.0.2
 	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/emicklei/dot v0.11.0
@@ -113,6 +114,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.17.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/cp v1.1.1 // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
@@ -167,7 +169,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/koron/go-ssdp v0.0.5 // indirect
 	github.com/kr/text v0.2.0 // indirect
